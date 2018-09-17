@@ -1,0 +1,2 @@
+# AutoStrategy
+Automatically create strategies
