@@ -14,7 +14,7 @@ import numpy as np
 import threading
 import time
 from AutoStrategy.TradingSystem.Trade import time_in_range
-import AutoStrategy
+from AutoStrategy import AutoStrategy
 
 Trading=False
 
