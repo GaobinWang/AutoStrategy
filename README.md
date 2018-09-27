@@ -44,6 +44,6 @@ e)	statsmodels版本必须为0.8.0
 
 
 
-AutoStrategyRelease35 是 Python Version 3.5 包,
+AutoStrategyRelease35 是 Python Version 3.5 包， 使用时修改文件名为AutoStrategy
 
-AutoStrategyRelease36 是 Python Version 3.6 包
+AutoStrategyRelease36 是 Python Version 3.6 包， 使用时修改文件名为AutoStrategy
