@@ -1,7 +1,7 @@
 {
-    "Sharpe": ">0", 
-    "DrawDown": "<0.5", 
+    "Sharpe": ">-1", 
+    "DrawDown": "<1", 
     "SharpeStd": "<10", 
-    "Return": ">0.05", 
+    "Return": ">-1", 
     "ReturnStd": "<10"
 }

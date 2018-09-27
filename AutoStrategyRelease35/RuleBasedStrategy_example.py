@@ -41,7 +41,7 @@ if __name__ == "__main__":
         示例从天软中下载数据，用户可使用自己的数据源，但需要整理为相同的字段
         """
         TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
-        TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2007,1,1,0,0,0), datetime.datetime.now(), 'SZ000905','hfq','30分钟线')         
+        TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2007,1,1,0,0,0), datetime.datetime.now(), 'SH000905','hfq','30分钟线')         
         # remove the duplicated Time
         TimestampPriceX=TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
         # remove the rows that contain zeros
@@ -65,34 +65,48 @@ if __name__ == "__main__":
         'close':float,
         'amount':float,
         'volume:float'
+        
         strategyfolder: 产生策略存储的文件夹，若不存在，自动创建
         code: 策略基于的标的代码
         strategy: 策略名称
         numfeature: 一次抽取的因子数目
         numstrategy: 需要产生的策略数目
         numtry: 最大尝试次数
+        target: 学习演进目标, 目前只支持夏普 'Sharpe_Ratio'
+        maxdepth: 最大if else判断次数
+        fpr: 该节点是判断节点的概率
+        ppr: 该节点是变量节点的概率
+        popsize: 起始策略数目，种群数目
+        maxgen: 最大演化代数
+        mutationrate: 发生变异（Mutation）的概率
+        breedingrate: 发生交叉(crossover)的概率
+        pexp: 产生随机数的参数，通常选择0.9
+        pnew: 在演化是种群中随机产生一个新个体的概率
         opencost: 开仓成本
         closecost: 隔日平仓成本
         intradayclosecost: 当日平仓成本
         Type: 回测规则，'LongShort'是多空回测，'LongOnly'是只多不空回测
         moduleFile: 存放StrategyCritertia.json'的位置
         """
-        strategyName=AutoStrategy.create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\AutoCTATest', code='SH000905',numfeature=5,numtry=500)
+        strategyName=AutoStrategy.Rule_Based_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder', code='SH000905',numfeature=5,numtry=500)
         
         
         
         
         '''
         部署策略
+        (1) 在strategy文件夹下写入Py文件
+        (2) 在VnTrader文件夹下CTA_setting.json中添加策略字段
+        (3) 在strategyfolder父目录下加入第一条测试策略的交易记录
         strategy: 策略名
         strategyfolder:策略所在文件夹
-        vtSymbol:vnpy的实盘交易代码
+        vtSymbol:vnpy的实盘交易代码，若没有请填写模拟盘交易代码
         vnpypath: vnpy下载下来的所在路径，不能和vnpysettingpath同时为None
         vnpystrategyfolder:strategy 文件夹通常是在 vnpy\\trader\\app\\ctaStrategy' 下
         vnpysettingpath: 用来添加策略至策略字典的路径，通常在VnTrader下
         signalpath: 交易信号写入的数据库，若None则默认在strategyfolder向上一级文件夹下
         '''
-        AutoStrategy.deploy(strategy=strategyName,strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\AutoCTATest',vtSymbol='IC1809',vnpypath='C:\\Users\\pc\\Desktop\\vnpy-master')
+        AutoStrategy.Deploy(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',vnpypath='C:\\Users\\maozh\\Downloads\\vnpy\\vnpy-master\\vnpy-master')
     
     # 如果实盘交易
     if Trading:
@@ -137,15 +151,15 @@ if __name__ == "__main__":
 
                     '''
                     运行策略
-                    如果有VNPY了，并且经过了Deploy，在运行run就是实盘；
-                    如果没有，就是模拟盘
                     strategy: 策略名
-                    strategyfolder: 策略所在文件夹
-                    vtSymbol: 实际交易标的代码，需要与Deploy时候一致，如果None，那么为模拟盘交易，否则为实盘。
-                    Newdata: 新的数据['Code', 'DATETIME', 'Date', 'Time', 'open', 'high', 'low', 'close','amount', 'volume']
-                    signalpath: 交易数据库地址，若None则默认在strategyfolder向上一级文件夹下
+                    strategyfolder:策略所在文件夹
+                    vtSymbol:vnpy的实盘交易代码，若没有请填写模拟盘交易代码
+                    vnpypath: vnpy下载下来的所在路径，不能和vnpysettingpath同时为None
+                    vnpystrategyfolder:strategy 文件夹通常是在 vnpy\\trader\\app\\ctaStrategy' 下
+                    vnpysettingpath: 用来添加策略至策略字典的路径，通常在VnTrader下
+                    signalpath: 交易信号写入的数据库，若None则默认在strategyfolder向上一级文件夹下
                     '''
-                    AutoStrategy.run(strategy=strategyName,strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\AutoCTATest',vtSymbol='IC1809',Newdata=Newdata)
+                    AutoStrategy.Rule_Based_Run(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',Newdata=Newdata)
                 
                     lock.release()
                     
@@ -159,5 +173,5 @@ if __name__ == "__main__":
                 TradingTimer.cancel()
                     
                     
-        strategyName='Auto_2018_09_08_15_49_59_SH000905'
+        strategyName='Auto_2018_09_25_19_28_13_SH000905'
         Trading(strategyName)
