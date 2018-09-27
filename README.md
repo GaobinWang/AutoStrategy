@@ -10,7 +10,8 @@ AutoStrategy.Machine_Learning_Create(TimestampPriceX=TimestampPriceX, strategyfo
 AutoStrategy.Rule_Based_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder', code='SH000905',numfeature=5,numtry=500)
 
 AutoStrategy.Deploy(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',vnpypath='C:\\Users\\maozh\\Downloads\\vnpy\\vnpy-master\\vnpy-master')
-             AutoStrategy.Machine_Learning_Run(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',Newdata=Newdata)
+
+AutoStrategy.Machine_Learning_Run(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',Newdata=Newdata)
              
 AutoStrategy.Rule_Based_Run(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',Newdata=Newdata)
 
