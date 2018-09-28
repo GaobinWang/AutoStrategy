@@ -13,13 +13,18 @@ from Cython.Build import cythonize
 ext_modules = cythonize(
 	[
     Extension('AutoStrategy', ['AutoStrategy.py']),
-    Extension("AutomatedCTAGenerator.*",  ["AutomatedCTAGenerator/*.py"]),
-    Extension("Backtest.*",  ["Backtest/*.py"]),
-    Extension("Feature.*",  ["Feature/*.py"]),
-    Extension("IOdata.*",  ["IOdata/*.py"]),
-    Extension("TradingSystem.*",  ["TradingSystem/*.py"]),
-    Extension("PositionSizing.*",  ["PositionSizing/*.py"]),
-    Extension("LoginAccount.*",  ["LoginAccount/*.py"])
+    Extension("AutomatedCTAGenerator.AutomatedCTATradeHelper",  ["AutomatedCTAGenerator/AutomatedCTATradeHelper.py"]),
+    Extension("AutomatedCTAGenerator.AutomatedFeatureGenerator",  ["AutomatedCTAGenerator/AutomatedFeatureGenerator.py"]),
+    Extension("AutomatedCTAGenerator.GeneticProgramming",  ["AutomatedCTAGenerator/GeneticProgramming.py"]),
+    Extension("AutomatedCTAGenerator.MLPredictionGenerator",  ["AutomatedCTAGenerator/MLPredictionGenerator.py"]),
+    Extension("AutomatedCTAGenerator.TimestampOperations",  ["AutomatedCTAGenerator/TimestampOperations.py"]),
+    Extension("Backtest.BacktestPerformence",  ["Backtest/BacktestPerformence.py"]),
+    Extension("Feature.FeatureBases",  ["Feature/FeatureBases.py"]),
+    Extension("Feature.features",  ["Feature/features.py"]),
+    Extension("IOdata.Downloader",  ["IOdata/Downloader.py"]),
+    Extension("TradingSystem.Trade",  ["TradingSystem/Trade.py"]),
+    Extension("PositionSizing.ComboStrategy",  ["PositionSizing/ComboStrategy.py"]),
+    Extension("LoginAccount.login",  ["LoginAccount/login.py"])
     #   ... all your modules that need be compiled ...
     ],
     build_dir="build",
