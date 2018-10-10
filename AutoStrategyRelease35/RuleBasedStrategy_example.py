@@ -17,6 +17,10 @@ from AutoStrategy.TradingSystem.Trade import time_in_range
 from AutoStrategy import AutoStrategy
 
 Trading=False
+Create=True
+Deploy=False
+Backtest=False
+
 
 def get_time():
     """
@@ -32,67 +36,68 @@ def get_time():
 if __name__ == "__main__":  
     
     # 如果是产生策略或者部署策略
-    if not Trading:
+    if Create:
+        stkcodes=['SH000905','SH000016','SH000300','SH000001','SZ399006']
+        for stkcode in stkcodes:
         
-        """
-        下载的数据TimestampPriceX为pandas DataFrame
-        字段需要是['Code','DATETIME','Date','Time','open','high','low','close','amount','volume']
+            """
+            下载的数据TimestampPriceX为pandas DataFrame
+            字段需要是['Code','DATETIME','Date','Time','open','high','low','close','amount','volume']
+            
+            示例从天软中下载数据，用户可使用自己的数据源，但需要整理为相同的字段
+            """
+            TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
+            TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2007,1,1,0,0,0), datetime.datetime(2017,1,1,0,0,0), stkcode,'hfq','30分钟线')         
+            # remove the duplicated Time
+            TimestampPriceX=TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
+            # remove the rows that contain zeros
+            TimestampPriceX = TimestampPriceX.replace({'0':np.nan, 0:np.nan})
+            
+            
+            
+            
+            
+            """
+            实现根据K线自动产生交易策略
+            使用时需至少输入产生策略基于的K线，策略存储的文件夹，基于的标的代码
+            TimestampPriceX: 产生策略基于的K线，字段是['Code','DATETIME','Date','Time','open','high','low','close','amount','volume']
+            'Code': string 'SH000905',
+            'DATETIME':datetime.datetime,
+            'Date':datetime.date,
+            'Time':datetime.time,
+            'open':float,
+            'high':float,
+            'low'float,
+            'close':float,
+            'amount':float,
+            'volume:float'
+            
+            strategyfolder: 产生策略存储的文件夹，若不存在，自动创建
+            code: 策略基于的标的代码
+            strategy: 策略名称
+            numfeature: 一次抽取的因子数目
+            numstrategy: 需要产生的策略数目
+            numtry: 最大尝试次数
+            target: 学习演进目标, 目前只支持夏普 'Sharpe_Ratio'
+            maxdepth: 最大if else判断次数
+            fpr: 该节点是判断节点的概率
+            ppr: 该节点是变量节点的概率
+            popsize: 起始策略数目，种群数目
+            maxgen: 最大演化代数
+            mutationrate: 发生变异（Mutation）的概率
+            breedingrate: 发生交叉(crossover)的概率
+            pexp: 产生随机数的参数，通常选择0.9
+            pnew: 在演化是种群中随机产生一个新个体的概率
+            opencost: 开仓成本
+            closecost: 隔日平仓成本
+            intradayclosecost: 当日平仓成本
+            Type: 回测规则，'LongShort'是多空回测，'LongOnly'是只多不空回测
+            moduleFile: 存放StrategyCritertia.json'的位置
+            """
+            AutoStrategy.Rule_Based_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\RuleStrategyIndex', code=stkcode,numfeature=5,numtry=500)
+            
         
-        示例从天软中下载数据，用户可使用自己的数据源，但需要整理为相同的字段
-        """
-        TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
-        TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2007,1,1,0,0,0), datetime.datetime.now(), 'SH000905','hfq','30分钟线')         
-        # remove the duplicated Time
-        TimestampPriceX=TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
-        # remove the rows that contain zeros
-        TimestampPriceX = TimestampPriceX.replace({'0':np.nan, 0:np.nan})
-        
-        
-        
-        
-        
-        """
-        实现根据K线自动产生交易策略
-        使用时需至少输入产生策略基于的K线，策略存储的文件夹，基于的标的代码
-        TimestampPriceX: 产生策略基于的K线，字段是['Code','DATETIME','Date','Time','open','high','low','close','amount','volume']
-        'Code': string 'SH000905',
-        'DATETIME':datetime.datetime,
-        'Date':datetime.date,
-        'Time':datetime.time,
-        'open':float,
-        'high':float,
-        'low'float,
-        'close':float,
-        'amount':float,
-        'volume:float'
-        
-        strategyfolder: 产生策略存储的文件夹，若不存在，自动创建
-        code: 策略基于的标的代码
-        strategy: 策略名称
-        numfeature: 一次抽取的因子数目
-        numstrategy: 需要产生的策略数目
-        numtry: 最大尝试次数
-        target: 学习演进目标, 目前只支持夏普 'Sharpe_Ratio'
-        maxdepth: 最大if else判断次数
-        fpr: 该节点是判断节点的概率
-        ppr: 该节点是变量节点的概率
-        popsize: 起始策略数目，种群数目
-        maxgen: 最大演化代数
-        mutationrate: 发生变异（Mutation）的概率
-        breedingrate: 发生交叉(crossover)的概率
-        pexp: 产生随机数的参数，通常选择0.9
-        pnew: 在演化是种群中随机产生一个新个体的概率
-        opencost: 开仓成本
-        closecost: 隔日平仓成本
-        intradayclosecost: 当日平仓成本
-        Type: 回测规则，'LongShort'是多空回测，'LongOnly'是只多不空回测
-        moduleFile: 存放StrategyCritertia.json'的位置
-        """
-        strategyName=AutoStrategy.Rule_Based_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder', code='SH000905',numfeature=5,numtry=500)
-        
-        
-        
-        
+    if Deploy:    
         '''
         部署策略
         (1) 在strategy文件夹下写入Py文件
@@ -105,8 +110,41 @@ if __name__ == "__main__":
         vnpystrategyfolder:strategy 文件夹通常是在 vnpy\\trader\\app\\ctaStrategy' 下
         vnpysettingpath: 用来添加策略至策略字典的路径，通常在VnTrader下
         signalpath: 交易信号写入的数据库，若None则默认在strategyfolder向上一级文件夹下
+        mock: 是否为模拟盘交易，True是模拟盘，False是实盘
         '''
-        AutoStrategy.Deploy(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',vnpypath='C:\\Users\\maozh\\Downloads\\vnpy\\vnpy-master\\vnpy-master')
+        AutoStrategy.Deploy(strategy='Auto_2018_09_28_13_03_40_SH000905',strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\RuleStrategyIndex',vtSymbol='SH000905',vnpypath='C:\\Users\\pc\\Desktop\\vnpy-master',mock=True)
+    
+    
+    
+    if Backtest:
+        """
+        事后分析策略
+        使用Rule-Based的方法，根据交易信号数据库或者重现的交易信号来分析策略在一段时间内的表现
+        
+        TimestampPriceX: 产生策略基于的K线，字段是['Code','DATETIME','Date','Time','open','high','low','close','amount','volume']
+        'Code': string 'SH000905',
+        'DATETIME':datetime.datetime,
+        'Date':datetime.date,
+        'Time':datetime.time,
+        'open':float,
+        'high':float,
+        'low'float,
+        'close':float,
+        'amount':float,
+        'volume:float
+        
+        strategyfolder: 产生策略存储的文件夹，若不存在，自动创建
+        strategy: 策略名称  
+        useDBsignal: 是否使用交易数据库中的信号作为回测。如果是，那么为True，如果使用重新计算交易信号就是False
+        lastn: 对最后多少根K线进行回测
+        opencost: 开仓成本
+        intradayclosecost: 当日平仓成本
+        closecost: 隔日平仓成本
+        Type: 回测规则，'LongShort'是多空回测，'LongOnly'是只多不空回测
+        """
+        AutoStrategy.Rule_based_Backtest(TimestampPriceX,strategy,strategyfolder,useDBsignal=True,signalpath=None,lastn=10000,opencost=5/10000,closecost=10/10000,intradayclosecost=10/10000,r=0.05,Type='LongShort')
+    
+    
     
     # 如果实盘交易
     if Trading:
@@ -159,7 +197,7 @@ if __name__ == "__main__":
                     vnpysettingpath: 用来添加策略至策略字典的路径，通常在VnTrader下
                     signalpath: 交易信号写入的数据库，若None则默认在strategyfolder向上一级文件夹下
                     '''
-                    AutoStrategy.Rule_Based_Run(strategy=strategyName,strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder',vtSymbol='IC1810',Newdata=Newdata)
+                    AutoStrategy.Rule_Based_Run(strategy=strategyName,strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\RuleStrategyIndex',vtSymbol=None,Newdata=Newdata)
                 
                     lock.release()
                     
@@ -173,5 +211,19 @@ if __name__ == "__main__":
                 TradingTimer.cancel()
                     
                     
-        strategyName='Auto_2018_09_25_19_28_13_SH000905'
+        strategyName='Auto_2018_09_28_10_11_05_SH000016'
         Trading(strategyName)
+        
+        strategyName='Auto_2018_09_28_10_26_16_SH000300'
+        Trading(strategyName)
+        
+        strategyName='Auto_2018_09_28_10_40_43_SH000001'
+        Trading(strategyName)
+        
+        strategyName='Auto_2018_09_28_10_50_44_SZ399006'
+        Trading(strategyName)
+        
+        strategyName='Auto_2018_09_28_13_03_40_SH000905'
+        Trading(strategyName)
+        
+    
