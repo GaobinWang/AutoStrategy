@@ -1,0 +1,7 @@
+{
+    "Sharpe": ">1", 
+    "DrawDown": "<0.5", 
+    "SharpeStd": "<10", 
+    "Return": ">0.2", 
+    "ReturnStd": "<10"
+}
