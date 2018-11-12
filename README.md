@@ -1,4 +1,9 @@
-# AutoStrategy
+
+# AutoStrategy一键安装
+运行INSTALLAutostrategy安装文件夹下的INSTALL.bat，如果MongoDB没有成功安装，请卸载重新安装，参看安装文件夹下的Readme.txt
+
+
+# AutoStrategy自定义安装
 通过人工智能的方法自动产生（1）基于机器学习的策略（2）基于规则的策略
 
 输入是[时间戳，高，开，低，收，成交额，成交量]，输出是一个个策略，详情请参阅《自动产生策略系统使用说明》
