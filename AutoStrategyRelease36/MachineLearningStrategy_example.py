@@ -16,8 +16,8 @@ import time
 from AutoStrategy.TradingSystem.Trade import time_in_range
 from AutoStrategy import AutoStrategy
 
-Trading=False
-Create=True
+Trading=True
+Create=False
 Deploy=False
 Backtest=False
 
@@ -81,7 +81,7 @@ if __name__ == "__main__":
             Type: 回测规则，'LongShort'是多空回测，'LongOnly'是只多不空回测
             moduleFile: 存放StrategyCritertia.json的位置
             """
-            AutoStrategy.Machine_Learning_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\MLStrategyIndex', code=stkcode,numfeature=5,numtry=500)
+            AutoStrategy.Machine_Learning_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder', code=stkcode,numfeature=5,numtry=500)
             
             
             
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         signalpath: 交易信号写入的数据库，若None则默认在strategyfolder向上一级文件夹下
         mock: 是否为模拟盘交易，True是模拟盘，False是实盘
         '''
-        AutoStrategy.Deploy(strategy=strategyName,strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\MLStrategyIndex',vtSymbol='IC1810',vnpypath='C:\\Users\\maozh\\Downloads\\vnpy\\vnpy-master\\vnpy-master',mock=True)
+        AutoStrategy.Deploy(strategy='Auto_2018_10_09_10_39_59_SH000905',strategyfolder=r'C:\Users\maozh\Desktop\Work\StartegyFolder',vtSymbol='IC1811',vnpypath='C:\\Users\\maozh\\Downloads\\vnpy安装\\vnpy-master\\vnpy-master',mock=False)
 
 
     if Backtest:

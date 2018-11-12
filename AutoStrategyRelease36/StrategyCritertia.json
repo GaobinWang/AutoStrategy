@@ -1,5 +1,5 @@
 {
-    "Sharpe": ">1", 
+    "Sharpe": ">0", 
     "DrawDown": "<0.5", 
     "SharpeStd": "<10", 
     "Return": ">0.2", 
