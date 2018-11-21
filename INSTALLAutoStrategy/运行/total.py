@@ -8,13 +8,17 @@
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, QDateTime
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.Qt import QEventLoop
+from PyQt5.QtGui import QPixmap
 import datetime
 import numpy as np
 import re
 import webbrowser
+import pandas as pd
+import os
 from AutoStrategy.IOdata import Downloader
 from AutoStrategy import AutoStrategy
-
+from AutoStrategy.AutomatedCTAGenerator import AutomatedCTATradeHelper
+from AutoStrategy.Visualization import plot
 
 
 class CreateThread(QThread):
@@ -155,7 +159,227 @@ class TradeThread(QThread):
         loop.exec_()
         
 
-      
+
+
+
+class BK_Ui_Dialog(QtWidgets.QDialog):
+    
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)   
+        
+        
+    def setupUi(self, Dialog):
+        Dialog.setObjectName("Dialog")
+        Dialog.resize(1082, 1036)
+        self.buttonBox = QtWidgets.QDialogButtonBox(Dialog)
+        self.buttonBox.setGeometry(QtCore.QRect(660, 970, 341, 32))
+        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
+        self.buttonBox.setObjectName("buttonBox")
+        self.strategylineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategylineEdit.setGeometry(QtCore.QRect(580, 110, 181, 21))
+        self.strategylineEdit.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self.strategylineEdit.setInputMask("")
+        self.strategylineEdit.setText("")
+        self.strategylineEdit.setMaxLength(32767)
+        self.strategylineEdit.setFrame(True)
+        self.strategylineEdit.setObjectName("strategylineEdit")
+        self.strategyfolderlineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategyfolderlineEdit.setGeometry(QtCore.QRect(150, 110, 181, 21))
+        self.strategyfolderlineEdit.setText("")
+        self.strategyfolderlineEdit.setObjectName("strategyfolderlineEdit")
+        self.strategylabel = QtWidgets.QLabel(Dialog)
+        self.strategylabel.setGeometry(QtCore.QRect(470, 110, 71, 20))
+        font = QtGui.QFont()
+        font.setFamily("Agency FB")
+        font.setPointSize(11)
+        self.strategylabel.setFont(font)
+        self.strategylabel.setObjectName("strategylabel")
+        self.strategyfolderlabel = QtWidgets.QLabel(Dialog)
+        self.strategyfolderlabel.setGeometry(QtCore.QRect(40, 110, 81, 20))
+        font = QtGui.QFont()
+        font.setFamily("Agency FB")
+        font.setPointSize(11)
+        self.strategyfolderlabel.setFont(font)
+        self.strategyfolderlabel.setObjectName("strategyfolderlabel")
+        self.value = QtWidgets.QLabel(Dialog)
+        self.value.setGeometry(QtCore.QRect(40, 180, 351, 291))
+        self.value.setFrameShape(QtWidgets.QFrame.Box)
+        self.value.setText("")
+        self.value.setScaledContents(True)
+        self.value.setObjectName("value")
+        self.drawdown = QtWidgets.QLabel(Dialog)
+        self.drawdown.setGeometry(QtCore.QRect(470, 180, 351, 291))
+        self.drawdown.setFrameShape(QtWidgets.QFrame.Box)
+        self.drawdown.setText("")
+        self.drawdown.setScaledContents(True)
+        self.drawdown.setObjectName("drawdown")
+        self.SharpeByYear = QtWidgets.QLabel(Dialog)
+        self.SharpeByYear.setGeometry(QtCore.QRect(40, 520, 351, 291))
+        self.SharpeByYear.setFrameShape(QtWidgets.QFrame.Box)
+        self.SharpeByYear.setText("")
+        self.SharpeByYear.setScaledContents(True)
+        self.SharpeByYear.setObjectName("SharpeByYear")
+        self.Returndist = QtWidgets.QLabel(Dialog)
+        self.Returndist.setGeometry(QtCore.QRect(470, 520, 351, 291))
+        self.Returndist.setFrameShape(QtWidgets.QFrame.Box)
+        self.Returndist.setText("")
+        self.Returndist.setScaledContents(True)
+        self.Returndist.setObjectName("Returndist")
+        self.subtitlelabel = QtWidgets.QLabel(Dialog)
+        self.subtitlelabel.setGeometry(QtCore.QRect(360, 70, 241, 21))
+        self.subtitlelabel.setObjectName("subtitlelabel")
+        self.maintitlelabel = QtWidgets.QLabel(Dialog)
+        self.maintitlelabel.setGeometry(QtCore.QRect(430, 20, 101, 51))
+        font = QtGui.QFont()
+        font.setFamily("AlternateGothic2 BT")
+        font.setPointSize(18)
+        self.maintitlelabel.setFont(font)
+        self.maintitlelabel.setObjectName("maintitlelabel")
+        self.valuelabel = QtWidgets.QLabel(Dialog)
+        self.valuelabel.setGeometry(QtCore.QRect(180, 150, 31, 16))
+        self.valuelabel.setObjectName("valuelabel")
+        self.drawdownlabel = QtWidgets.QLabel(Dialog)
+        self.drawdownlabel.setGeometry(QtCore.QRect(630, 150, 31, 16))
+        self.drawdownlabel.setObjectName("drawdownlabel")
+        self.SharpeByYearlabel = QtWidgets.QLabel(Dialog)
+        self.SharpeByYearlabel.setGeometry(QtCore.QRect(170, 490, 81, 16))
+        self.SharpeByYearlabel.setObjectName("SharpeByYearlabel")
+        self.Returndistlabel = QtWidgets.QLabel(Dialog)
+        self.Returndistlabel.setGeometry(QtCore.QRect(610, 490, 81, 16))
+        self.Returndistlabel.setObjectName("Returndistlabel")
+        self.sharpealllabel = QtWidgets.QLabel(Dialog)
+        self.sharpealllabel.setGeometry(QtCore.QRect(850, 190, 72, 15))
+        self.sharpealllabel.setObjectName("sharpealllabel")
+        self.sharpeall = QtWidgets.QLabel(Dialog)
+        self.sharpeall.setGeometry(QtCore.QRect(970, 190, 72, 15))
+        self.sharpeall.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.sharpeall.setText("")
+        self.sharpeall.setObjectName("sharpeall")
+        self.avgreturnlabel = QtWidgets.QLabel(Dialog)
+        self.avgreturnlabel.setGeometry(QtCore.QRect(850, 230, 91, 16))
+        self.avgreturnlabel.setObjectName("avgreturnlabel")
+        self.avgreturn = QtWidgets.QLabel(Dialog)
+        self.avgreturn.setGeometry(QtCore.QRect(970, 230, 72, 15))
+        self.avgreturn.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.avgreturn.setText("")
+        self.avgreturn.setObjectName("avgreturn")
+        self.maxddlabel = QtWidgets.QLabel(Dialog)
+        self.maxddlabel.setGeometry(QtCore.QRect(850, 270, 72, 15))
+        self.maxddlabel.setObjectName("maxddlabel")
+        self.maxdd = QtWidgets.QLabel(Dialog)
+        self.maxdd.setGeometry(QtCore.QRect(970, 270, 72, 15))
+        self.maxdd.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.maxdd.setText("")
+        self.maxdd.setObjectName("maxdd")
+        self.hitratiolabel = QtWidgets.QLabel(Dialog)
+        self.hitratiolabel.setGeometry(QtCore.QRect(850, 310, 72, 15))
+        self.hitratiolabel.setObjectName("hitratiolabel")
+        self.hitratio = QtWidgets.QLabel(Dialog)
+        self.hitratio.setGeometry(QtCore.QRect(970, 310, 72, 15))
+        self.hitratio.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.hitratio.setText("")
+        self.hitratio.setObjectName("hitratio")
+        self.pnlratiolabel = QtWidgets.QLabel(Dialog)
+        self.pnlratiolabel.setGeometry(QtCore.QRect(850, 350, 91, 16))
+        self.pnlratiolabel.setObjectName("pnlratiolabel")
+        self.pnlratio = QtWidgets.QLabel(Dialog)
+        self.pnlratio.setGeometry(QtCore.QRect(970, 350, 72, 15))
+        self.pnlratio.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.pnlratio.setText("")
+        self.pnlratio.setObjectName("pnlratio")
+        self.sharpestdlabel = QtWidgets.QLabel(Dialog)
+        self.sharpestdlabel.setGeometry(QtCore.QRect(850, 390, 81, 16))
+        self.sharpestdlabel.setObjectName("sharpestdlabel")
+        self.sharpestd = QtWidgets.QLabel(Dialog)
+        self.sharpestd.setGeometry(QtCore.QRect(970, 390, 72, 15))
+        self.sharpestd.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.sharpestd.setText("")
+        self.sharpestd.setObjectName("sharpestd")
+        self.returnstdlabel = QtWidgets.QLabel(Dialog)
+        self.returnstdlabel.setGeometry(QtCore.QRect(850, 430, 111, 16))
+        self.returnstdlabel.setObjectName("returnstdlabel")
+        self.returnstd = QtWidgets.QLabel(Dialog)
+        self.returnstd.setGeometry(QtCore.QRect(970, 430, 72, 15))
+        self.returnstd.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.returnstd.setText("")
+        self.returnstd.setObjectName("returnstd")
+
+        self.retranslateUi(Dialog)
+        self.buttonBox.accepted.connect(self.on_ok_clicked)
+        self.buttonBox.rejected.connect(Dialog.reject)
+        QtCore.QMetaObject.connectSlotsByName(Dialog)
+
+    def retranslateUi(self, Dialog):
+        _translate = QtCore.QCoreApplication.translate
+        Dialog.setWindowTitle(_translate("Dialog", "回测展示"))
+        self.strategylineEdit.setPlaceholderText(_translate("Dialog", "策略名字必须以Auto_开头"))
+        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\Strategyfolder"))
+        self.strategylabel.setText(_translate("Dialog", "策略名称"))
+        self.strategyfolderlabel.setText(_translate("Dialog", "存储路径"))
+        self.subtitlelabel.setText(_translate("Dialog", "策略自动产生与配置交易一站式平台"))
+        self.maintitlelabel.setText(_translate("Dialog", "黑科技"))
+        self.valuelabel.setText(_translate("Dialog", "净值"))
+        self.drawdownlabel.setText(_translate("Dialog", "回撤"))
+        self.SharpeByYearlabel.setText(_translate("Dialog", "分年度夏普"))
+        self.Returndistlabel.setText(_translate("Dialog", "日收益分布"))
+        self.sharpealllabel.setText(_translate("Dialog", "夏普"))
+        self.avgreturnlabel.setText(_translate("Dialog", "平均年化收益"))
+        self.maxddlabel.setText(_translate("Dialog", "最大回撤"))
+        self.hitratiolabel.setText(_translate("Dialog", "胜率"))
+        self.pnlratiolabel.setText(_translate("Dialog", "盈亏比（日）"))
+        self.sharpestdlabel.setText(_translate("Dialog", "夏普波动率"))
+        self.returnstdlabel.setText(_translate("Dialog", "年化收益波动率"))
+
+    def on_ok_clicked(self):
+        self.okdict=dict()
+        self.okdict['strategyfolder']=self.strategyfolderlineEdit.text()
+        self.okdict['strategy']=self.strategylineEdit.text()
+        visualbacktestpath=os.path.join(self.okdict['strategyfolder'],'visualbacktest')
+        if not os.path.exists(visualbacktestpath):
+            os.mkdir(visualbacktestpath)
+            
+        SignalGenerator=AutomatedCTATradeHelper.Signal_Generator(self.okdict['strategyfolder'], self.okdict['strategy'])
+        Strategy=SignalGenerator.Load_Strategy()
+        evalperf=Strategy['EvalPerformence']
+        
+        plot_trial=plot.pyplt_plot(pd.DataFrame([evalperf.date,evalperf.SimpleValue]).transpose(),'value')
+        plot_trial.date_line_plot(os.path.join(visualbacktestpath,'value.png'))
+        
+        plot_trial=plot.pyplt_plot(pd.DataFrame([evalperf.date[1:],evalperf.returns]).transpose(),'returns')
+        plot_trial.hist_plot(os.path.join(visualbacktestpath,'returns.png'))
+        
+        plot_trial=plot.pyplt_plot(pd.DataFrame([evalperf.date,-1*np.array(evalperf.SimpleDrawback)]).transpose(),'Drawback')
+        plot_trial.area_plot(os.path.join(visualbacktestpath,'drawback.png'))
+        
+        fig = evalperf.Sharpe_Ratio_by_year()[1].plot(kind='bar').get_figure()
+        fig.savefig(os.path.join(visualbacktestpath,"SharpeByYear.png"))
+        fig.clf()
+        #fig.cla()
+        #fig.close()
+            
+        valuepixmap = QPixmap(os.path.join(visualbacktestpath,'value.png'))
+        self.value.setPixmap(valuepixmap)
+
+        returnspixmap = QPixmap(os.path.join(visualbacktestpath,'returns.png'))
+        self.Returndist.setPixmap(returnspixmap)
+        
+        drawbackpixmap = QPixmap(os.path.join(visualbacktestpath,'drawback.png'))
+        self.drawdown.setPixmap(drawbackpixmap)
+        
+        sharpepixmap = QPixmap(os.path.join(visualbacktestpath,'SharpeByYear.png'))
+        self.SharpeByYear.setPixmap(sharpepixmap)
+        
+        self.sharpeall.setText('%.2f' % (round(evalperf.Sharpe_Ratio_all(),2)))
+        self.avgreturn.setText('%.2f' % (round(np.mean(evalperf.Return_by_year())[0],4)*100)+'%')
+        self.maxdd.setText('%.2f' % (round(evalperf.max_drawdown(choice_simple_interest=False),4)*100)+'%')
+        self.hitratio.setText('%.2f' % (round(evalperf.win_rate(),4)*100)+'%')
+        self.pnlratio.setText('%.2f' % (round(evalperf.profit_and_loss_ratio(),2)))
+        self.sharpestd.setText('%.2f' % (round(np.std(evalperf.Sharpe_Ratio_by_year()[1]),2)))
+        self.returnstd.setText('%.2f' % (round(np.std(evalperf.Return_by_year())[0],4)*100)+'%')
+        
+        
 class Ui_Dialog(QtWidgets.QDialog):
     
     def __init__(self):
@@ -539,6 +763,7 @@ class Ui_MainWindow(object):
         self.opencostdoubleSpinBox.setDecimals(5)
         self.opencostdoubleSpinBox.setMaximum(1.0)
         self.opencostdoubleSpinBox.setSingleStep(0.0001)
+        self.opencostdoubleSpinBox.setProperty("value", 0.001)
         self.opencostdoubleSpinBox.setObjectName("opencostdoubleSpinBox")
         #self.createparadict['opencost']=self.opencostdoubleSpinBox.value()
         
@@ -581,6 +806,7 @@ class Ui_MainWindow(object):
         self.closecostdoubleSpinBox.setDecimals(5)
         self.closecostdoubleSpinBox.setMaximum(1.0)
         self.closecostdoubleSpinBox.setSingleStep(0.0001)
+        self.closecostdoubleSpinBox.setProperty("value", 0.001)
         self.closecostdoubleSpinBox.setObjectName("closecostdoubleSpinBox")
         #self.createparadict['closecost']=self.closecostdoubleSpinBox.value()
         
@@ -667,6 +893,7 @@ class Ui_MainWindow(object):
         self.intradayclosecostdoubleSpinBox.setDecimals(5)
         self.intradayclosecostdoubleSpinBox.setMaximum(1.0)
         self.intradayclosecostdoubleSpinBox.setSingleStep(0.0001)
+        self.intradayclosecostdoubleSpinBox.setProperty("value", 0.001)
         self.intradayclosecostdoubleSpinBox.setObjectName("intradayclosecostdoubleSpinBox")
         #self.createparadict['intradayclosecost']=self.intradayclosecostdoubleSpinBox.value()
         
@@ -863,8 +1090,13 @@ class Ui_MainWindow(object):
         #self.login.setObjectName("login")
         
         #self.menu.addAction(self.login)
+        self.backtest = QtWidgets.QAction(MainWindow)
+        self.backtest.setObjectName("backtest")
+        self.backtest.triggered.connect(self.on_Backtest_triggered)
+        
         self.menu.addAction(self.reg)
         self.menu.addAction(self.Trading)
+        self.menu.addAction(self.backtest)
         self.menubar.addAction(self.menu.menuAction())
 
         self.retranslateUi(MainWindow)
@@ -919,10 +1151,15 @@ class Ui_MainWindow(object):
         self.Trading.setToolTip(_translate("MainWindow", "<html><head/><body><p>交易策略</p></body></html>"))
         self.reg.setText(_translate("MainWindow", "注册"))
         #self.login.setText(_translate("MainWindow", "登陆"))
-
+        self.backtest.setText(_translate("MainWindow", "观看回测"))
 
     def on_Trading_triggered(self):
         dialog = Ui_Dialog()
+        self.dialogs.append(dialog)
+        dialog.show()
+
+    def on_Backtest_triggered(self):
+        dialog = BK_Ui_Dialog()
         self.dialogs.append(dialog)
         dialog.show()
         
