@@ -1,3 +1,4 @@
 tushare
 passlib
 pymysql
+wget

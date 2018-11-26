@@ -15,10 +15,13 @@ import re
 import webbrowser
 import pandas as pd
 import os
+import gc
 from AutoStrategy.IOdata import Downloader
 from AutoStrategy import AutoStrategy
 from AutoStrategy.AutomatedCTAGenerator import AutomatedCTATradeHelper
 from AutoStrategy.Visualization import plot
+
+
 
 
 class CreateThread(QThread):
@@ -31,7 +34,9 @@ class CreateThread(QThread):
     # run method gets called when we start the thread
     def run(self):
         TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
+        TianRuanDownloader.login()
         TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2007,1,1,0,0,0), datetime.datetime.now(), self.createparadict['code'],'hfq',self.createparadict['freq'])         
+        TianRuanDownloader.logout()
         # remove the duplicated Time
         TimestampPriceX=TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
         # remove the rows that contain zeros
@@ -53,7 +58,7 @@ class CreateThread(QThread):
                                            breedingrate=self.createparadict['breedingrate'],pexp=0.9,pnew=self.createparadict['pnew'], 
                                            opencost=self.createparadict['opencost'],closecost=self.createparadict['closecost'], 
                                            intradayclosecost=self.createparadict['intradayclosecost'],r=self.createparadict['r'],Type=self.createparadict['backtest'])
-        
+        gc.collect()
         self.signal.emit(self.createparadict['strategyfolder'])
         
 
@@ -122,8 +127,9 @@ class TradeThread(QThread):
                 示例从天软中下载数据，用户可使用自己的数据源，但需要整理为相同的字段
                 '''                    
                 TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
+                TianRuanDownloader.login()
                 Newdata=TianRuanDownloader.continuous_min_download(datetime.datetime.now()-datetime.timedelta(days=100), datetime.datetime.now(), self.tradedict['code'],'hfq',str(self.tradedict['freq'])+'分钟线') 
-    
+                TianRuanDownloader.logout()
                 '''
                 运行策略
                 strategy: 策略名
@@ -145,7 +151,8 @@ class TradeThread(QThread):
                                                       strategyfolder=self.tradedict['strategyfolder'],
                                                       vtSymbol=self.tradedict['VtSymbol'],Newdata=Newdata,
                                                       signalpath=self.tradedict['signalpath']) 
-
+                
+                gc.collect()
                 if Pos is not None:  
                     tradestr=Pos['StrategyName'].iloc[0]+ ' 在 '+Pos['SecurityName'].iloc[0]+' 发出信号 '+str(Pos['Tradeside'].iloc[0])+'@'+str(Pos['Price'].iloc[0])+' 目前仓位 '+str(Pos['Position'].iloc[0])
                     self.signal.emit(tradestr)
@@ -161,6 +168,169 @@ class TradeThread(QThread):
 
 
 
+class Criteria_Ui_Dialog(QtWidgets.QDialog):
+    
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)   
+        
+    def setupUi(self, Dialog):
+        Dialog.setObjectName("Dialog")
+        Dialog.resize(527, 411)
+        font = QtGui.QFont()
+        font.setFamily("Agency FB")
+        font.setPointSize(11)
+        Dialog.setFont(font)
+        self.buttonBox = QtWidgets.QDialogButtonBox(Dialog)
+        self.buttonBox.setGeometry(QtCore.QRect(160, 340, 341, 32))
+        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
+        self.buttonBox.setObjectName("buttonBox")
+        self.sharpealllabel = QtWidgets.QLabel(Dialog)
+        self.sharpealllabel.setGeometry(QtCore.QRect(80, 100, 72, 21))
+        self.sharpealllabel.setObjectName("sharpealllabel")
+        self.avgreturnlabel = QtWidgets.QLabel(Dialog)
+        self.avgreturnlabel.setGeometry(QtCore.QRect(80, 130, 111, 31))
+        self.avgreturnlabel.setObjectName("avgreturnlabel")
+        self.maxddlabel = QtWidgets.QLabel(Dialog)
+        self.maxddlabel.setGeometry(QtCore.QRect(80, 170, 91, 31))
+        self.maxddlabel.setObjectName("maxddlabel")
+        self.sharpestdlabel = QtWidgets.QLabel(Dialog)
+        self.sharpestdlabel.setGeometry(QtCore.QRect(80, 210, 111, 31))
+        self.sharpestdlabel.setObjectName("sharpestdlabel")
+        self.returnstdlabel = QtWidgets.QLabel(Dialog)
+        self.returnstdlabel.setGeometry(QtCore.QRect(80, 250, 171, 31))
+        self.returnstdlabel.setObjectName("returnstdlabel")
+        self.maintitlelabel = QtWidgets.QLabel(Dialog)
+        self.maintitlelabel.setGeometry(QtCore.QRect(210, 10, 101, 51))
+        font = QtGui.QFont()
+        font.setFamily("AlternateGothic2 BT")
+        font.setPointSize(18)
+        self.maintitlelabel.setFont(font)
+        self.maintitlelabel.setObjectName("maintitlelabel")
+        self.subtitlelabel = QtWidgets.QLabel(Dialog)
+        self.subtitlelabel.setGeometry(QtCore.QRect(140, 60, 241, 21))
+        font = QtGui.QFont()
+        font.setPointSize(9)
+        self.subtitlelabel.setFont(font)
+        self.subtitlelabel.setObjectName("subtitlelabel")
+        self.SRGLcomboBox = QtWidgets.QComboBox(Dialog)
+        self.SRGLcomboBox.setGeometry(QtCore.QRect(260, 100, 41, 22))
+        self.SRGLcomboBox.setObjectName("SRGLcomboBox")
+        self.SRGLcomboBox.addItem("")
+        self.SRGLcomboBox.addItem("")
+        self.AVGRGLcomboBox = QtWidgets.QComboBox(Dialog)
+        self.AVGRGLcomboBox.setGeometry(QtCore.QRect(260, 140, 41, 22))
+        self.AVGRGLcomboBox.setObjectName("AVGRGLcomboBox")
+        self.AVGRGLcomboBox.addItem("")
+        self.AVGRGLcomboBox.addItem("")
+        self.MAXDDGLcomboBox = QtWidgets.QComboBox(Dialog)
+        self.MAXDDGLcomboBox.setGeometry(QtCore.QRect(260, 180, 41, 22))
+        self.MAXDDGLcomboBox.setObjectName("MAXDDGLcomboBox")
+        self.MAXDDGLcomboBox.addItem("")
+        self.MAXDDGLcomboBox.addItem("")
+        self.SRSTDGLcomboBox = QtWidgets.QComboBox(Dialog)
+        self.SRSTDGLcomboBox.setGeometry(QtCore.QRect(260, 220, 41, 22))
+        self.SRSTDGLcomboBox.setObjectName("SRSTDGLcomboBox")
+        self.SRSTDGLcomboBox.addItem("")
+        self.SRSTDGLcomboBox.addItem("")
+        self.AVGRSTDGLcomboBox = QtWidgets.QComboBox(Dialog)
+        self.AVGRSTDGLcomboBox.setGeometry(QtCore.QRect(260, 260, 41, 22))
+        self.AVGRSTDGLcomboBox.setObjectName("AVGRSTDGLcomboBox")
+        self.AVGRSTDGLcomboBox.addItem("")
+        self.AVGRSTDGLcomboBox.addItem("")
+        self.SRdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.SRdoubleSpinBox.setGeometry(QtCore.QRect(320, 100, 70, 22))
+        self.SRdoubleSpinBox.setDecimals(5)
+        self.SRdoubleSpinBox.setSingleStep(0.01)
+        self.SRdoubleSpinBox.setProperty("value", 1.0)
+        self.SRdoubleSpinBox.setObjectName("SRdoubleSpinBox")
+        self.AVGRdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.AVGRdoubleSpinBox.setGeometry(QtCore.QRect(320, 140, 70, 22))
+        self.AVGRdoubleSpinBox.setDecimals(5)
+        self.AVGRdoubleSpinBox.setSingleStep(0.01)
+        self.AVGRdoubleSpinBox.setProperty("value", 0.2)
+        self.AVGRdoubleSpinBox.setObjectName("AVGRdoubleSpinBox")
+        self.MAXDDdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.MAXDDdoubleSpinBox.setGeometry(QtCore.QRect(320, 180, 70, 22))
+        self.MAXDDdoubleSpinBox.setDecimals(5)
+        self.MAXDDdoubleSpinBox.setSingleStep(0.01)
+        self.MAXDDdoubleSpinBox.setProperty("value", 0.15)
+        self.MAXDDdoubleSpinBox.setObjectName("MAXDDdoubleSpinBox")
+        self.SRSTDdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.SRSTDdoubleSpinBox.setGeometry(QtCore.QRect(320, 220, 70, 22))
+        self.SRSTDdoubleSpinBox.setDecimals(5)
+        self.SRSTDdoubleSpinBox.setSingleStep(0.01)
+        self.SRSTDdoubleSpinBox.setProperty("value", 2.0)
+        self.SRSTDdoubleSpinBox.setObjectName("SRSTDdoubleSpinBox")
+        self.AVGRSTDdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.AVGRSTDdoubleSpinBox.setGeometry(QtCore.QRect(320, 260, 70, 22))
+        self.AVGRSTDdoubleSpinBox.setDecimals(5)
+        self.AVGRSTDdoubleSpinBox.setSingleStep(0.01)
+        self.AVGRSTDdoubleSpinBox.setProperty("value", 1.0)
+        self.AVGRSTDdoubleSpinBox.setObjectName("AVGRSTDdoubleSpinBox")
+
+        self.retranslateUi(Dialog)
+        self.buttonBox.accepted.connect(self.on_ok_cliked)
+        self.buttonBox.rejected.connect(Dialog.reject)
+        QtCore.QMetaObject.connectSlotsByName(Dialog)
+
+    def retranslateUi(self, Dialog):
+        _translate = QtCore.QCoreApplication.translate
+        Dialog.setWindowTitle(_translate("Dialog", "策略标准"))
+        self.sharpealllabel.setText(_translate("Dialog", "夏普"))
+        self.avgreturnlabel.setText(_translate("Dialog", "平均年化收益"))
+        self.maxddlabel.setText(_translate("Dialog", "最大回撤"))
+        self.sharpestdlabel.setText(_translate("Dialog", "夏普波动率"))
+        self.returnstdlabel.setText(_translate("Dialog", "年化收益波动率"))
+        self.maintitlelabel.setText(_translate("Dialog", "黑科技"))
+        self.subtitlelabel.setText(_translate("Dialog", "策略自动产生与配置交易一站式平台"))
+        self.SRGLcomboBox.setItemText(0, _translate("Dialog", ">"))
+        self.SRGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+        self.AVGRGLcomboBox.setItemText(0, _translate("Dialog", ">"))
+        self.AVGRGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+        self.MAXDDGLcomboBox.setCurrentText(_translate("Dialog", "<"))
+        self.MAXDDGLcomboBox.setItemText(0, _translate("Dialog", ">"))
+        self.MAXDDGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+        self.SRSTDGLcomboBox.setCurrentText(_translate("Dialog", "<"))
+        self.SRSTDGLcomboBox.setItemText(0, _translate("Dialog", ">"))
+        self.SRSTDGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+        self.AVGRSTDGLcomboBox.setCurrentText(_translate("Dialog", "<"))
+        self.AVGRSTDGLcomboBox.setItemText(0, _translate("Dialog", ">"))
+        self.AVGRSTDGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+
+    def on_ok_cliked(self):
+        self.criteria=dict()
+        self.evalrequiredNew=dict()
+        
+        self.criteria['SRGL']=self.SRGLcomboBox.currentText()
+        self.criteria['AVGRGL']=self.AVGRGLcomboBox.currentText()
+        self.criteria['MAXDDGL']=self.MAXDDGLcomboBox.currentText()
+        self.criteria['SRSTDGL']=self.SRSTDGLcomboBox.currentText()
+        self.criteria['AVGRSTDGL']=self.AVGRSTDGLcomboBox.currentText()
+        self.criteria['SR']=self.SRdoubleSpinBox.value()
+        self.criteria['AVGR']=self.AVGRSTDdoubleSpinBox.value()
+        self.criteria['MAXDD']=self.MAXDDdoubleSpinBox.value()
+        self.criteria['SRSTD']=self.SRSTDdoubleSpinBox.value()
+        self.criteria['AVGRSTD']=self.AVGRSTDdoubleSpinBox.value()
+        
+        self.evalrequiredNew['Sharpe']=self.criteria['SRGL']+str(self.criteria['SR'])
+        self.evalrequiredNew['DrawDown']=self.criteria['MAXDDGL']+str(self.criteria['MAXDD'])
+        self.evalrequiredNew['SharpeStd']=self.criteria['SRSTDGL']+str(self.criteria['SRSTD'])
+        self.evalrequiredNew['Return']=self.criteria['AVGRGL']+str(self.criteria['AVGR'])
+        self.evalrequiredNew['ReturnStd']=self.criteria['AVGRSTDGL']+str(self.criteria['AVGRSTD'])
+        
+        moduleFile=os.path.dirname(AutoStrategy.__file__)
+        evalrequired=AutoStrategy.loadJsonSetting('StrategyCritertia.json',moduleFile)
+        for key in evalrequired.keys():
+            if not self.evalrequiredNew[key]:
+                continue
+            else:
+                evalrequired[key]=self.evalrequiredNew[key]
+        AutoStrategy.WriteJsonSetting(evalrequired,os.path.join(moduleFile,'StrategyCritertia.json'))
+        
+        
+        
 
 class BK_Ui_Dialog(QtWidgets.QDialog):
     
@@ -315,7 +485,7 @@ class BK_Ui_Dialog(QtWidgets.QDialog):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "回测展示"))
         self.strategylineEdit.setPlaceholderText(_translate("Dialog", "策略名字必须以Auto_开头"))
-        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\Strategyfolder"))
+        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\Strategyfolder"))
         self.strategylabel.setText(_translate("Dialog", "策略名称"))
         self.strategyfolderlabel.setText(_translate("Dialog", "存储路径"))
         self.subtitlelabel.setText(_translate("Dialog", "策略自动产生与配置交易一站式平台"))
@@ -559,18 +729,18 @@ class Ui_Dialog(QtWidgets.QDialog):
         self.strategylineEdit.setPlaceholderText(_translate("Dialog", "策略名字必须以Auto_开头"))
         self.VtSymbollineEdit.setPlaceholderText(_translate("Dialog", "IC1812"))
         self.strategyfolderlabel.setText(_translate("Dialog", "存储路径"))
-        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\Strategyfolder"))
+        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\Strategyfolder"))
         self.vnpypathtypelabel.setText(_translate("Dialog", "VNPY文件夹路径"))
         self.trade.setText(_translate("Dialog", "交易"))
         self.cancel.setText(_translate("Dialog", "取消"))
         self.deploy.setText(_translate("Dialog", "部署"))
-        self.vnpypathlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\vnpy"))
+        self.vnpypathlineEdit.setPlaceholderText(_translate("Dialog", "C:\\vnpy"))
         self.vnpystrategyfoldertypelabel.setText(_translate("Dialog", "VNPY策略文件夹路径"))
-        self.vnpystrategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\Anaconda3\\\\envs\\\\Anaconda2\\\\Lib\\\\site-packages\\\\vnpy-1.9.0-py2.7.egg\\\\vnpy\\\\trader\\\\app\\\\ctaStrategy\\\\strategy"))
+        self.vnpystrategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\tools\\Anaconda2\\Lib\\site-packages\\vnpy-1.9.0-py2.7.egg\\vnpy\\trader\\app\\ctaStrategy\\strategy"))
         self.vnpysettingpathtypelabel.setText(_translate("Dialog", "VNPY策略字典路径"))
-        self.vnpysettingpathlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\vnpy-master\\\\examples\\\\VnTrader"))
+        self.vnpysettingpathlineEdit.setPlaceholderText(_translate("Dialog", "C:\\vnpy-master\\examples\\VnTrader"))
         self.signalpathtypelabel.setText(_translate("Dialog", "交易数据库路径"))
-        self.signalpathlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\vnpy-master\\\\examples\\\\VnTrader"))
+        self.signalpathlineEdit.setPlaceholderText(_translate("Dialog", "C:\\vnpy\\examples\\VnTrader"))
         self.mockcheckBox.setText(_translate("Dialog", "接入实盘，若勾选，则填写以下内容"))
         self.stoptrade.setText(_translate("Dialog", "停止交易"))
         self.siganlBrowerlabel.setText(_translate("Dialog", "交易信号浏览器"))
@@ -584,15 +754,17 @@ class Ui_Dialog(QtWidgets.QDialog):
         if len(self.deploydict['strategy'])==0:
             self.deploydict['strategy']=None
         self.deploydict['VtSymbol']=self.VtSymbollineEdit.text()
+        if len(self.deploydict['VtSymbol'])==0:
+            self.deploydict['VtSymbol']=None
         self.deploydict['vnpypath']=self.vnpypathlineEdit.text()
         if len(self.deploydict['vnpypath'])==0:
             self.deploydict['vnpypath']=None
         self.deploydict['vnpystrategyfolder']=self.vnpystrategyfolderlineEdit.text()
         if len(self.deploydict['vnpystrategyfolder'])==0:
-            self.deploydict['vnpystrategyfolder']=None
+            self.deploydict['vnpystrategyfolder']=r'C:\tools\Anaconda2\Lib\site-packages\vnpy-1.9.0-py2.7.egg\vnpy\trader\app\ctaStrategy\strategy'
         self.deploydict['vnpysettingpath']=self.vnpysettingpathlineEdit.text()  
         if len(self.deploydict['vnpysettingpath'])==0:
-            self.deploydict['vnpysettingpath']=None
+            self.deploydict['vnpysettingpath']=r'C:\vnpy\examples\VnTrader'
         self.deploydict['signalpath']=self.signalpathlineEdit.text()
         if len(self.deploydict['signalpath'])==0:
             self.deploydict['signalpath']=None
@@ -605,6 +777,8 @@ class Ui_Dialog(QtWidgets.QDialog):
 
 
     def deploy_finished(self, result):
+        self.deploy_thread.quit()
+        self.deploy_thread.wait()
         self.deploy.setEnabled(True)  # Enable the pushButton
 
         
@@ -617,6 +791,8 @@ class Ui_Dialog(QtWidgets.QDialog):
         if len(self.tradedict['strategy'])==0:
             self.tradedict['strategy']=None
         self.tradedict['VtSymbol']=self.VtSymbollineEdit.text()
+        if len(self.tradedict['VtSymbol'])==0:
+            self.tradedict['VtSymbol']=None
         self.tradedict['vnpypath']=self.vnpypathlineEdit.text()
         if len(self.tradedict['vnpypath'])==0:
             self.tradedict['vnpypath']=None
@@ -1070,6 +1246,8 @@ class Ui_MainWindow(object):
         self.menubar.setObjectName("menubar")
         self.menu = QtWidgets.QMenu(self.menubar)
         self.menu.setObjectName("menu")
+        self.custommenu = QtWidgets.QMenu(self.menubar)
+        self.custommenu.setObjectName("custommenu")
         MainWindow.setMenuBar(self.menubar)
         
         
@@ -1094,10 +1272,17 @@ class Ui_MainWindow(object):
         self.backtest.setObjectName("backtest")
         self.backtest.triggered.connect(self.on_Backtest_triggered)
         
+        self.criteria = QtWidgets.QAction(MainWindow)
+        self.criteria.setObjectName("criteria")
+        self.criteria.triggered.connect(self.on_criteria_triggered)
+        
         self.menu.addAction(self.reg)
         self.menu.addAction(self.Trading)
         self.menu.addAction(self.backtest)
+        self.custommenu.addAction(self.criteria)
+
         self.menubar.addAction(self.menu.menuAction())
+        self.menubar.addAction(self.custommenu.menuAction())
 
         self.retranslateUi(MainWindow)
         self.cancel.clicked.connect(MainWindow.close)
@@ -1126,7 +1311,7 @@ class Ui_MainWindow(object):
         self.strategylabel.setText(_translate("MainWindow", "策略名称"))
         self.pnewlabel.setText(_translate("MainWindow", "变异概率"))
         self.mutationratelabel.setText(_translate("MainWindow", "变异概率"))
-        self.strategyfolderlineEdit.setPlaceholderText(_translate("MainWindow", "C:\\\\Strategyfolder"))
+        self.strategyfolderlineEdit.setPlaceholderText(_translate("MainWindow", "C:\\Strategyfolder"))
         self.strategytypecomboBox.setItemText(0, _translate("MainWindow", "机器学习"))
         self.strategytypecomboBox.setItemText(1, _translate("MainWindow", "基于规则"))
         self.numfeaturelabel.setText(_translate("MainWindow", "因子数目"))
@@ -1150,8 +1335,10 @@ class Ui_MainWindow(object):
         self.Trading.setText(_translate("MainWindow", "交易策略"))
         self.Trading.setToolTip(_translate("MainWindow", "<html><head/><body><p>交易策略</p></body></html>"))
         self.reg.setText(_translate("MainWindow", "注册"))
+        self.custommenu.setTitle(_translate("MainWindow", "个性化"))
         #self.login.setText(_translate("MainWindow", "登陆"))
         self.backtest.setText(_translate("MainWindow", "观看回测"))
+        self.criteria.setText(_translate("MainWindow", "策略生成条件"))
 
     def on_Trading_triggered(self):
         dialog = Ui_Dialog()
@@ -1160,6 +1347,11 @@ class Ui_MainWindow(object):
 
     def on_Backtest_triggered(self):
         dialog = BK_Ui_Dialog()
+        self.dialogs.append(dialog)
+        dialog.show()
+    
+    def on_criteria_triggered(self):
+        dialog = Criteria_Ui_Dialog()
         self.dialogs.append(dialog)
         dialog.show()
         
@@ -1198,6 +1390,8 @@ class Ui_MainWindow(object):
 
 
     def finished(self, result):
+        self.create_thread.quit()
+        self.create_thread.wait()
         self.create.setEnabled(True)  # Enable the pushButton
         
         
