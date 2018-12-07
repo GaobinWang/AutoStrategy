@@ -16,6 +16,9 @@ import webbrowser
 import pandas as pd
 import os
 import gc
+import statsmodels.api as smwf
+import io 
+from sqlalchemy import create_engine
 from AutoStrategy.IOdata import Downloader
 from AutoStrategy import AutoStrategy
 from AutoStrategy.AutomatedCTAGenerator import AutomatedCTATradeHelper
@@ -33,14 +36,14 @@ class CreateThread(QThread):
 
     # run method gets called when we start the thread
     def run(self):
-        TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
+        TianRuanDownloader=Downloader.TianRuan_Downloader("C:\\Program Files\\Tinysoft\\Analyse.NET")
         TianRuanDownloader.login()
         TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2007,1,1,0,0,0), datetime.datetime.now(), self.createparadict['code'],'hfq',self.createparadict['freq'])         
         TianRuanDownloader.logout()
-        # remove the duplicated Time
         TimestampPriceX=TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
-        # remove the rows that contain zeros
         TimestampPriceX = TimestampPriceX.replace({'0':np.nan, 0:np.nan})
+        TimestampPriceX =TimestampPriceX.dropna()
+        TimestampPriceX = TimestampPriceX.reset_index(drop=True)
         
         if self.createparadict['strategytype']=='机器学习':            
             AutoStrategy.Machine_Learning_Create(TimestampPriceX, strategyfolder=self.createparadict['strategyfolder'], code=self.createparadict['code'], 
@@ -126,10 +129,18 @@ class TradeThread(QThread):
                 Newdata开始日期应为上次运行策略时间，为保险起见，每次都取过去100个交易日的数据。
                 示例从天软中下载数据，用户可使用自己的数据源，但需要整理为相同的字段
                 '''                    
-                TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
+                TianRuanDownloader=Downloader.TianRuan_Downloader("C:\\Program Files\\Tinysoft\\Analyse.NET")
                 TianRuanDownloader.login()
                 Newdata=TianRuanDownloader.continuous_min_download(datetime.datetime.now()-datetime.timedelta(days=100), datetime.datetime.now(), self.tradedict['code'],'hfq',str(self.tradedict['freq'])+'分钟线') 
                 TianRuanDownloader.logout()
+                
+                Newdata=Newdata[Newdata['DATETIME']<datetime.datetime.combine(datetime.datetime.now().date(),xtime)]
+                Newdata=Newdata.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
+                Newdata = Newdata.replace({'0':np.nan, 0:np.nan})
+                Newdata =Newdata.dropna()
+                Newdata = Newdata.reset_index(drop=True)
+
+
                 '''
                 运行策略
                 strategy: 策略名
@@ -153,20 +164,143 @@ class TradeThread(QThread):
                                                       signalpath=self.tradedict['signalpath']) 
                 
                 gc.collect()
-                if Pos is not None:  
-                    tradestr=Pos['StrategyName'].iloc[0]+ ' 在 '+Pos['SecurityName'].iloc[0]+' 发出信号 '+str(Pos['Tradeside'].iloc[0])+'@'+str(Pos['Price'].iloc[0])+' 目前仓位 '+str(Pos['Position'].iloc[0])
-                    self.signal.emit(tradestr)
-                    print (tradestr)
                     
+                if Pos is not None: 
+                    tradestr=str(Pos['DATETIME'].iloc[0]) + ' : ' + Pos['StrategyName'].iloc[0]+ ' 在 '+Pos['SecurityName'].iloc[0]+' 发出信号 '+str(Pos['Tradeside'].iloc[0])+'@'+str(Pos['Price'].iloc[0])+' 目前仓位 '+str(Pos['Position'].iloc[0])
+                else:                                    
+                    if self.tradedict['signalpath']==None:
+                        self.tradedict['signalpath']=os.path.abspath(os.path.join(self.tradedict['strategyfolder'], os.pardir))
+                    disk_engine =create_engine('sqlite:///'+os.path.join(self.tradedict['signalpath'],'TradingSignal.db'))
+
+                    SignalSQL=pd.read_sql_query("SELECT * FROM TradingSignal where StrategyName= '%s'" %self.tradedict['strategy'], disk_engine)
+                    
+                    if len(SignalSQL)>0:
+                        datetime_x=[]
+                        for y in SignalSQL['DATETIME']:
+                            y=datetime.datetime.strptime(y,'%Y-%m-%d %H:%M:%S.%f')
+                            datetime_x.append(y)
+                        
+                        SignalSQL['DATETIME']=datetime_x
+                        SignalSQL=SignalSQL.sort_values(by='DATETIME')
+                        CurrentPos=SignalSQL['Position'].iloc[-1]
+                    else:
+                        CurrentPos=0
+                        
+                    tradestr=str(datetime.datetime.now()) + ' : ' + self.tradedict['strategy'] + ' 在 '+self.tradedict['code']+' 发出信号 '+' 0 '+' 目前仓位 '+str(CurrentPos)
+                
+                self.signal.emit(tradestr)
+                print (tradestr)                    
     
     # run method gets called when we start the thread
     def run(self):
-        self.tradetimer.start(16000)
+        self.tradetimer.start(60000)
         loop = QEventLoop()
         loop.exec_()
         
 
 
+
+class Attribute_Ui_Dialog(QtWidgets.QDialog):
+    
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)   
+       
+    def setupUi(self, Dialog):
+        Dialog.setObjectName("Dialog")
+        Dialog.resize(723, 639)
+        self.buttonBox = QtWidgets.QDialogButtonBox(Dialog)
+        self.buttonBox.setGeometry(QtCore.QRect(350, 560, 341, 32))
+        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
+        self.buttonBox.setObjectName("buttonBox")
+        self.subtitlelabel = QtWidgets.QLabel(Dialog)
+        self.subtitlelabel.setGeometry(QtCore.QRect(240, 70, 241, 21))
+        self.subtitlelabel.setObjectName("subtitlelabel")
+        self.strategyfolderlineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategyfolderlineEdit.setGeometry(QtCore.QRect(110, 110, 181, 21))
+        self.strategyfolderlineEdit.setText("")
+        self.strategyfolderlineEdit.setObjectName("strategyfolderlineEdit")
+        self.strategylineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategylineEdit.setGeometry(QtCore.QRect(520, 110, 181, 21))
+        self.strategylineEdit.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self.strategylineEdit.setInputMask("")
+        self.strategylineEdit.setText("")
+        self.strategylineEdit.setMaxLength(32767)
+        self.strategylineEdit.setFrame(True)
+        self.strategylineEdit.setObjectName("strategylineEdit")
+        self.strategyfolderlabel = QtWidgets.QLabel(Dialog)
+        self.strategyfolderlabel.setGeometry(QtCore.QRect(20, 110, 81, 20))
+        font = QtGui.QFont()
+        font.setFamily("Agency FB")
+        font.setPointSize(11)
+        self.strategyfolderlabel.setFont(font)
+        self.strategyfolderlabel.setObjectName("strategyfolderlabel")
+        self.strategylabel = QtWidgets.QLabel(Dialog)
+        self.strategylabel.setGeometry(QtCore.QRect(430, 110, 71, 20))
+        font = QtGui.QFont()
+        font.setFamily("Agency FB")
+        font.setPointSize(11)
+        self.strategylabel.setFont(font)
+        self.strategylabel.setObjectName("strategylabel")
+        self.maintitlelabel = QtWidgets.QLabel(Dialog)
+        self.maintitlelabel.setGeometry(QtCore.QRect(310, 20, 101, 51))
+        font = QtGui.QFont()
+        font.setFamily("AlternateGothic2 BT")
+        font.setPointSize(18)
+        self.maintitlelabel.setFont(font)
+        self.maintitlelabel.setObjectName("maintitlelabel")
+        self.textBrowser = QtWidgets.QTextBrowser(Dialog)
+        self.textBrowser.setGeometry(QtCore.QRect(60, 170, 601, 371))
+        self.textBrowser.setObjectName("textBrowser")
+
+        self.retranslateUi(Dialog)
+        self.buttonBox.accepted.connect(self.on_ok_clicked)
+        self.buttonBox.rejected.connect(Dialog.reject)
+        QtCore.QMetaObject.connectSlotsByName(Dialog)
+
+    def retranslateUi(self, Dialog):
+        _translate = QtCore.QCoreApplication.translate
+        Dialog.setWindowTitle(_translate("Dialog", "归因"))
+        self.subtitlelabel.setText(_translate("Dialog", "策略自动产生与配置交易一站式平台"))
+        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\Strategyfolder"))
+        self.strategylineEdit.setPlaceholderText(_translate("Dialog", "策略名字必须以Auto_开头"))
+        self.strategyfolderlabel.setText(_translate("Dialog", "存储路径"))
+        self.strategylabel.setText(_translate("Dialog", "策略名称"))
+        self.maintitlelabel.setText(_translate("Dialog", "黑科技"))
+
+
+    def on_ok_clicked(self):
+        self.attributedict=dict()
+        
+        self.attributedict['strategyfolder']=self.strategyfolderlineEdit.text()
+        self.attributedict['strategy']=self.strategylineEdit.text()
+        
+        SignalGenerator=AutomatedCTATradeHelper.Signal_Generator(self.attributedict['strategyfolder'], self.attributedict['strategy'])
+        Strategy=SignalGenerator.Load_Strategy()
+        
+        if isinstance(Strategy['Method'], str):
+            colnamesX = Strategy['Traindata'].columns[2:]
+            y = Strategy['Traindata'][Strategy['Traindata'].columns[0]]
+            X = Strategy['Traindata'][colnamesX]
+            X = smwf.add_constant(X, has_constant='add')
+            # change of data type
+            y = y.astype(float)
+            
+            for column in X:
+                X[column]=X[column].astype(float)
+                
+            model = smwf.OLS(y, X).fit() 
+            
+            Y=Strategy['Traindata'].columns[0]
+            Xs=[str(x[0])+' * '+x[1] for x in zip(model.params[1:], model.params.index[1:])]
+            XYformulastr=Y + ' = ' + str(model.params[0]) + ' + ' + ' + '.join(Xs)
+            self.textBrowser.setText(XYformulastr)
+        else:
+            StrategyMethod = io.StringIO()
+            Strategy['Method'].display(f=StrategyMethod) 
+            self.textBrowser.setText(StrategyMethod.getvalue())
+        
 
 class Criteria_Ui_Dialog(QtWidgets.QDialog):
     
@@ -242,18 +376,23 @@ class Criteria_Ui_Dialog(QtWidgets.QDialog):
         self.SRdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
         self.SRdoubleSpinBox.setGeometry(QtCore.QRect(320, 100, 70, 22))
         self.SRdoubleSpinBox.setDecimals(5)
+        self.SRdoubleSpinBox.setMaximum(99)
+        self.SRdoubleSpinBox.setMinimum(-99)
         self.SRdoubleSpinBox.setSingleStep(0.01)
         self.SRdoubleSpinBox.setProperty("value", 1.0)
         self.SRdoubleSpinBox.setObjectName("SRdoubleSpinBox")
         self.AVGRdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
         self.AVGRdoubleSpinBox.setGeometry(QtCore.QRect(320, 140, 70, 22))
         self.AVGRdoubleSpinBox.setDecimals(5)
+        self.AVGRdoubleSpinBox.setMaximum(1)
+        self.AVGRdoubleSpinBox.setMinimum(-1)
         self.AVGRdoubleSpinBox.setSingleStep(0.01)
         self.AVGRdoubleSpinBox.setProperty("value", 0.2)
         self.AVGRdoubleSpinBox.setObjectName("AVGRdoubleSpinBox")
         self.MAXDDdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
         self.MAXDDdoubleSpinBox.setGeometry(QtCore.QRect(320, 180, 70, 22))
         self.MAXDDdoubleSpinBox.setDecimals(5)
+        self.MAXDDdoubleSpinBox.setMaximum(0.99)
         self.MAXDDdoubleSpinBox.setSingleStep(0.01)
         self.MAXDDdoubleSpinBox.setProperty("value", 0.15)
         self.MAXDDdoubleSpinBox.setObjectName("MAXDDdoubleSpinBox")
@@ -290,14 +429,14 @@ class Criteria_Ui_Dialog(QtWidgets.QDialog):
         self.AVGRGLcomboBox.setItemText(0, _translate("Dialog", ">"))
         self.AVGRGLcomboBox.setItemText(1, _translate("Dialog", "<"))
         self.MAXDDGLcomboBox.setCurrentText(_translate("Dialog", "<"))
-        self.MAXDDGLcomboBox.setItemText(0, _translate("Dialog", ">"))
-        self.MAXDDGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+        self.MAXDDGLcomboBox.setItemText(0, _translate("Dialog", "<"))
+        self.MAXDDGLcomboBox.setItemText(1, _translate("Dialog", ">"))
         self.SRSTDGLcomboBox.setCurrentText(_translate("Dialog", "<"))
-        self.SRSTDGLcomboBox.setItemText(0, _translate("Dialog", ">"))
-        self.SRSTDGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+        self.SRSTDGLcomboBox.setItemText(0, _translate("Dialog", "<"))
+        self.SRSTDGLcomboBox.setItemText(1, _translate("Dialog", ">"))
         self.AVGRSTDGLcomboBox.setCurrentText(_translate("Dialog", "<"))
-        self.AVGRSTDGLcomboBox.setItemText(0, _translate("Dialog", ">"))
-        self.AVGRSTDGLcomboBox.setItemText(1, _translate("Dialog", "<"))
+        self.AVGRSTDGLcomboBox.setItemText(0, _translate("Dialog", "<"))
+        self.AVGRSTDGLcomboBox.setItemText(1, _translate("Dialog", ">"))
 
     def on_ok_cliked(self):
         self.criteria=dict()
@@ -815,7 +954,7 @@ class Ui_Dialog(QtWidgets.QDialog):
         self.tradedict['freq']=int(self.tradedict['freq'][1:2])*60+int(self.tradedict['freq'][3:5])
         
         potitime=Strategy['TimestampPriceX']['Time'].value_counts()
-        potitime=list(potitime[potitime>potitime.max()*0.95].index)
+        potitime=list(potitime[potitime>potitime.max()*0.4].index)
         self.tradedict['potitime']=[(datetime.datetime.combine(datetime.date(1992,3,25),x)+datetime.timedelta(minutes=1)).time() for x in potitime]
         print (self.tradedict)
         
@@ -1276,9 +1415,14 @@ class Ui_MainWindow(object):
         self.criteria.setObjectName("criteria")
         self.criteria.triggered.connect(self.on_criteria_triggered)
         
+        self.attribute = QtWidgets.QAction(MainWindow)
+        self.attribute.setObjectName("attribute")
+        self.attribute.triggered.connect(self.on_attribute_triggered)
+        
         self.menu.addAction(self.reg)
         self.menu.addAction(self.Trading)
         self.menu.addAction(self.backtest)
+        self.menu.addAction(self.attribute)
         self.custommenu.addAction(self.criteria)
 
         self.menubar.addAction(self.menu.menuAction())
@@ -1339,6 +1483,7 @@ class Ui_MainWindow(object):
         #self.login.setText(_translate("MainWindow", "登陆"))
         self.backtest.setText(_translate("MainWindow", "观看回测"))
         self.criteria.setText(_translate("MainWindow", "策略生成条件"))
+        self.attribute.setText(_translate("MainWindow", "观看归因"))
 
     def on_Trading_triggered(self):
         dialog = Ui_Dialog()
@@ -1352,6 +1497,11 @@ class Ui_MainWindow(object):
     
     def on_criteria_triggered(self):
         dialog = Criteria_Ui_Dialog()
+        self.dialogs.append(dialog)
+        dialog.show()
+        
+    def on_attribute_triggered(self):
+        dialog = Attribute_Ui_Dialog()
         self.dialogs.append(dialog)
         dialog.show()
         
