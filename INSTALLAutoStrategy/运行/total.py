@@ -1368,7 +1368,7 @@ class Trading_Ui_Dialog(QtWidgets.QDialog):
         if len(self.deploydict['vnpystrategyfolder'])==0:
             vnpyegg=fnmatch.filter(os.listdir(r'C:\tools\Anaconda2\Lib\site-packages\\'), 'vnpy*.egg')
             if len(vnpyegg)!=0:
-                self.deploydict['vnpystrategyfolder']=os.path.join(r'C:\tools\Anaconda2\Lib\site-packages',vnpyegg[0],'vnpy\trader\app\ctaStrategy\strategy')
+                self.deploydict['vnpystrategyfolder']=os.path.join(r'C:\tools\Anaconda2\Lib\site-packages',vnpyegg[0],r'vnpy\trader\app\ctaStrategy\strategy')
             else:
                 self.deploydict['vnpystrategyfolder']=r'C:\tools\Anaconda2\Lib\site-packages\vnpy-1.9.2-py2.7.egg\vnpy\trader\app\ctaStrategy\strategy'
         self.deploydict['vnpysettingpath']=self.vnpysettingpathlineEdit.text()  
@@ -1410,7 +1410,7 @@ class Trading_Ui_Dialog(QtWidgets.QDialog):
         if len(self.deploydict['vnpystrategyfolder'])==0:
             vnpyegg=fnmatch.filter(os.listdir(r'C:\tools\Anaconda2\Lib\site-packages\\'), 'vnpy*.egg')
             if len(vnpyegg)!=0:
-                self.deploydict['vnpystrategyfolder']=os.path.join(r'C:\tools\Anaconda2\Lib\site-packages',vnpyegg[0],'vnpy\trader\app\ctaStrategy\strategy')
+                self.deploydict['vnpystrategyfolder']=os.path.join(r'C:\tools\Anaconda2\Lib\site-packages',vnpyegg[0],r'vnpy\trader\app\ctaStrategy\strategy')
             else:
                 self.deploydict['vnpystrategyfolder']=r'C:\tools\Anaconda2\Lib\site-packages\vnpy-1.9.2-py2.7.egg\vnpy\trader\app\ctaStrategy\strategy'
             print (self.deploydict['vnpystrategyfolder'])
@@ -1439,7 +1439,7 @@ class Trading_Ui_Dialog(QtWidgets.QDialog):
         if len(self.tradedict['vnpystrategyfolder'])==0:
             vnpyegg=fnmatch.filter(os.listdir(r'C:\tools\Anaconda2\Lib\site-packages\\'), 'vnpy*.egg')
             if len(vnpyegg)!=0:
-                self.tradedict['vnpystrategyfolder']=os.path.join(r'C:\tools\Anaconda2\Lib\site-packages',vnpyegg[0],'vnpy\trader\app\ctaStrategy\strategy')
+                self.tradedict['vnpystrategyfolder']=os.path.join(r'C:\tools\Anaconda2\Lib\site-packages',vnpyegg[0],r'vnpy\trader\app\ctaStrategy\strategy')
             else:
                 self.tradedict['vnpystrategyfolder']=r'C:\tools\Anaconda2\Lib\site-packages\vnpy-1.9.2-py2.7.egg\vnpy\trader\app\ctaStrategy\strategy'
         self.tradedict['vnpysettingpath']=self.vnpysettingpathlineEdit.text()  
