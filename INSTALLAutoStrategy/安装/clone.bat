@@ -1,12 +1,17 @@
+@setlocal enableextensions
+@cd /d "%~dp0"
+
 SET CURRENT=%cd%
 
 call refreshenv
+c:
 cd c:\
 git clone "https://github.com/vnpy/vnpy.git"
 cd %CURRENT%
-start vnpy.bat
+call vnpy.bat
 
 call refreshenv
+c:
 cd c:\
 git clone "https://github.com/mao-zhou/AutoStrategy"
 call C:\tools\Anaconda3\Scripts\activate.bat

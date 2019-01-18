@@ -94,7 +94,13 @@ if __name__ == "__main__":
             Type: 回测规则，'LongShort'是多空回测，'LongOnly'是只多不空回测
             moduleFile: 存放StrategyCritertia.json'的位置
             """
-            AutoStrategy.Rule_Based_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\pc\\Desktop\\AutoCTA\\RuleStrategyIndex', code=stkcode,numfeature=5,numtry=500)
+            AutoStrategy.Rule_Based_Create(TimestampPriceX, strategyfolder=r'C:\Users\maozh\Desktop\Work\StartegyFolder', code='SH000905', 
+            strategy=None, numfeature=5, numstrategy=1, 
+            numtry=2, target='Sharpe_Ratio',maxdepth=5,
+            fpr=0.8,ppr=0.8,popsize=10,maxgen=2,mutationrate=0.1,
+            breedingrate=0.4,pexp=0.9,pnew=0.05, opencost=5/10000,
+            closecost=10/10000,intradayclosecost=10/10000,r=0.06,
+            Type='LongShort',moduleFile=None,keepbest=True)
             
         
     if Deploy:    

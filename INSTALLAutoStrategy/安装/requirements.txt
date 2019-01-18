@@ -2,3 +2,5 @@ tushare
 passlib
 pymysql
 wget
+qdarkstyle
+pymongo

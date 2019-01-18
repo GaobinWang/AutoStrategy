@@ -1,3 +1,6 @@
+@setlocal enableextensions
+@cd /d "%~dp0"
+
 SET CURRENT=%cd%
 cd %CURRENT%
 

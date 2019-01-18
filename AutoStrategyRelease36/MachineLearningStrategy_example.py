@@ -45,12 +45,14 @@ if __name__ == "__main__":
             示例从天软中下载数据，用户可使用自己的数据源，但需要整理为相同的字段
             """
             TianRuanDownloader=Downloader.TianRuan_Downloader("E:\\Analyse.NET")
-            TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2007,1,1,0,0,0), datetime.datetime(2017,1,1,0,0,0), stkcode,'hfq','30分钟线')         
+            TianRuanDownloader.login()
+            TimestampPriceX=TianRuanDownloader.continuous_min_download(datetime.datetime(2015,1,1,0,0,0), datetime.datetime(2017,1,1,0,0,0), stkcode,'hfq','30分钟线')         
             # remove the duplicated Time
             TimestampPriceX=TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
             # remove the rows that contain zeros
             TimestampPriceX = TimestampPriceX.replace({'0':np.nan, 0:np.nan})
-            
+            TianRuanDownloader.logout()
+
             
             
             
@@ -82,6 +84,12 @@ if __name__ == "__main__":
             moduleFile: 存放StrategyCritertia.json的位置
             """
             AutoStrategy.Machine_Learning_Create(TimestampPriceX=TimestampPriceX, strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder', code=stkcode,numfeature=5,numtry=500)
+            AutoStrategy.Machine_Learning_GACreate(TimestampPriceX, strategyfolder='C:\\Users\\maozh\\Desktop\\Work\\StartegyFolder', code='SH000905', 
+                                                   strategy=None, topn=3, numfeature=5, 
+                                                   numstrategy=1, numtry=2, opencost=5/10000,
+                                                   closecost=10/10000, intradayclosecost=10/10000,r=0.05,
+                                                   Type='LongShort',moduleFile=None,popsize=10,maxgen=2,
+                                                   mutationrate=0.1,breedingrate=0.4,pexp=0.9,pnew=0.05,keepbest=True,rollingn=500)
             
             
             

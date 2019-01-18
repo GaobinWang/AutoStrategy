@@ -1,1 +1,1 @@
-{"Sharpe": ">-2.0", "DrawDown": "<0.99", "SharpeStd": "<22.0", "Return": ">-1.0", "ReturnStd": "<11.0"}
+{"Sharpe": ">1.0", "DrawDown": "<0.15", "SharpeStd": "<2.0", "Return": ">1.0", "ReturnStd": "<1.0"}

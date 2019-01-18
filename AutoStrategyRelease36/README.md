@@ -1,0 +1,2 @@
+# AutoStrategyNightEdge
+Developer's AutoStrategy

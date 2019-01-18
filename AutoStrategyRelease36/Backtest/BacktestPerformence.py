@@ -988,8 +988,8 @@ class backtest_minutes:
                 
             if STOPLOSS==True:
                 closeprev=interprice['close'][interprice['Date']==interdates[len(interdates)-2]].as_matrix()[0]
-                closethatday=interprice[openprice].as_matrix()[0]*(1-r)
-                tradingvalue.append(self.long(closeprev,closethatday,0,closecost))  
+                closethatday=interprice[openprice].as_matrix()[0]*(1+r)
+                tradingvalue.append(self.short(closeprev,closethatday,0,closecost))  
             else: 
                 # get the last day of trading return 
                 # because the cost of closing, we have to do that seperate            
