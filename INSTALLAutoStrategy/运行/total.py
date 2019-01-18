@@ -24,7 +24,7 @@ import fnmatch
 from sqlalchemy import create_engine
 import json
 import time
-import qdarkstyle
+#import qdarkstyle
 import ctypes
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("myappid")
 
