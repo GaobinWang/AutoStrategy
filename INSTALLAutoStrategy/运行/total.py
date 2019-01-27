@@ -137,22 +137,6 @@ class CreateThread(QThread):
 
 
 
-class DeployThread(QThread):
-    signal = pyqtSignal('PyQt_PyObject')
-
-    def __init__(self):
-        QThread.__init__(self)
-        self.deploydict = dict()
-        
-        
-    # run method gets called when we start the thread
-    def run(self):
-        AutoStrategy.Deploy(strategy=self.deploydict['strategy'],strategyfolder=self.deploydict['strategyfolder'],
-                            vtSymbol=self.deploydict['VtSymbol'],vnpypath=self.deploydict['vnpypath'],
-                            vnpystrategyfolder=self.deploydict['vnpystrategyfolder'],vnpysettingpath=self.deploydict['vnpysettingpath'],
-                            signalpath=self.deploydict['signalpath'],mock=self.deploydict['mock'],sharenum=self.deploydict['ordervol'],orderwaitsc=self.deploydict['orderwaitsc'])
-
-        self.signal.emit(self.deploydict['mock'])
   
 
 
@@ -174,7 +158,7 @@ class TradeThread(QThread):
     def Trading(self):
                 
         TimeNow = QDateTime.currentDateTime()
-        
+
             
         '''
         time_in_range是策略执行的时间，例如对于股票市场，是每日9:31到11:30，13:00到15:00
@@ -275,6 +259,7 @@ class TradeThread(QThread):
                             Mindata = tupytdx.pretty(includecode=True) 
                             Mindata = tupytdx.ts_local_hfq(Mindata)
                         print (Mindata)    
+                        print (datetime.datetime.combine(datetime.datetime.now().date(),xtime)-datetime.timedelta(minutes=1))
                         tupytdxNewdata = Universal_Data_Updater(Newdata,Mindata)
                         Newdata = Newdata.append(tupytdxNewdata)
                     except:
@@ -621,7 +606,12 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
         
         SignalGenerator=AutomatedCTATradeHelper.Signal_Generator(self.attributedict['strategyfolder'], self.attributedict['strategy'])
         Strategy=SignalGenerator.Load_Strategy()
-        
+        Colnames=Strategy['Traindata'].columns.difference(['DATETIME'])
+        '''
+        colexplanation=''
+        for i, colname in enumerate(Colnames):
+            colexplanation=colexplanation+'p'+str(i)+': ' + colname +'\n' 
+        '''
         if isinstance(Strategy['Method'], str):
             colnamesX = Strategy['Traindata'].columns[2:]
             y = Strategy['Traindata'][Strategy['Traindata'].columns[0]]
@@ -636,14 +626,17 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
             model = smwf.OLS(y, X).fit() 
             
             Y=Strategy['Traindata'].columns[0]
-            Xs=[str(x[0])+' * '+x[1] for x in zip(model.params[1:], model.params.index[1:])]
-            XYformulastr=Y + ' = ' + str(model.params[0]) + ' + ' + ' + '.join(Xs)
+            Xs=[str(round(x[0],2))+' * '+x[1] for x in zip(model.params[1:], model.params.index[1:])]
+            XYformulastr=Y + ' = ' + str(round(model.params[0],2)) + ' + ' + ' + '.join(Xs)
             self.textBrowser.setText(XYformulastr)
         else:
             StrategyMethod = io.StringIO()
-            Strategy['Method'].display(f=StrategyMethod) 
-            self.textBrowser.setText(StrategyMethod.getvalue())
-        
+            Strategy['Method'].display(f=StrategyMethod)
+            Treeformulastr=StrategyMethod.getvalue()
+            for i, colname in enumerate(Colnames):
+                Treeformulastr=Treeformulastr.replace('p'+str(i),colname)
+            self.textBrowser.setText(Treeformulastr+'\n'*4)
+            
 
 class Criteria_Ui_Dialog(QtWidgets.QDialog):
     
@@ -1129,7 +1122,6 @@ class Trading_Ui_Dialog(QtWidgets.QDialog):
         super().__init__(flags=Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint|Qt.WindowCloseButtonHint)
 
         self.trade_thread = TradeThread()      
-        self.deploy_thread = DeployThread()
         self.setupUi(self)        
         self.deploydict=dict()
         self.tradedict = dict()
@@ -1312,7 +1304,6 @@ class Trading_Ui_Dialog(QtWidgets.QDialog):
         self.trade_thread.signal.connect(self.on_trade)
         self.stoptrade.clicked.connect(self.on_stoptrade)
         self.deploy.clicked.connect(self.on_deploy_clicked)
-        self.deploy_thread.signal.connect(self.deploy_finished)
         self.canceldeploy.clicked.connect(self.on_cancel_deploy)
         
         self.retranslateUi(Dialog)
@@ -1378,20 +1369,14 @@ class Trading_Ui_Dialog(QtWidgets.QDialog):
             self.deploydict['signalpath']=AutoStrategy.ReadListLinebyLine('SignalPath.txt',os.getcwd())[0]
         except:    
             self.deploydict['signalpath']=r'C:\tools\Anaconda3\Lib\site-packages'
-            print (traceback.print_exc())
         self.deploydict['mock']=not self.mockcheckBox.isChecked()
         self.deploydict['ordervol']=self.ordervolspinBox.value()
         self.deploydict['orderwaitsc']=self.orderwaitscspinBox.value()
-        self.deploy_thread.deploydict = self.deploydict # Get the git URL
-        self.deploy.setEnabled(False)  # Disables the pushButton
-        self.deploy_thread.start()  # Finally starts the thread
+        AutoStrategy.Deploy(strategy=self.deploydict['strategy'],strategyfolder=self.deploydict['strategyfolder'],
+                            vtSymbol=self.deploydict['VtSymbol'],vnpypath=self.deploydict['vnpypath'],
+                            vnpystrategyfolder=self.deploydict['vnpystrategyfolder'],vnpysettingpath=self.deploydict['vnpysettingpath'],
+                            signalpath=self.deploydict['signalpath'],mock=self.deploydict['mock'],sharenum=self.deploydict['ordervol'],orderwaitsc=self.deploydict['orderwaitsc'])
 
-
-
-    def deploy_finished(self, result):
-        self.deploy_thread.quit()
-        self.deploy_thread.wait()
-        self.deploy.setEnabled(True)  # Enable the pushButton
 
         
         
