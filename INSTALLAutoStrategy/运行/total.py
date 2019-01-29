@@ -201,6 +201,7 @@ class TradeThread(QThread):
                             Newdata = pd.DataFrame(columns=['Code', 'Date', 'Time','DATETIME', 'amount', 'close', 'high', 'low', 'open', 'volume'])  
                     elif self.tradedict['code'].startswith('QI'):
                         starttimeindex = json.loads(pd.DataFrame([self.tradedict['starttime']]).T.to_json()).values()
+                        endtimeindex=json.loads(pd.DataFrame([datetime.datetime.now()]).T.to_json()).values()
                         if list(starttimeindex)[0]['0']<list(endtimeindex)[0]['0']:
                             Newdata = MongoMindb.read_mongo(query={'DATETIME': {'$gt':list(starttimeindex)[0]['0']}},collection=self.tradedict['code'])    
                             if len(Newdata)!=0:
