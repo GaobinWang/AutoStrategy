@@ -32,6 +32,8 @@ from AutoStrategy.IOdata import Downloader
 from AutoStrategy import AutoStrategy
 from AutoStrategy.AutomatedCTAGenerator import AutomatedCTATradeHelper
 from AutoStrategy.Visualization import plot
+from AutoStrategy.PositionSizing import ComboStrategy
+from AutoStrategy.Backtest import BacktestPerformence
 
 
 
@@ -90,9 +92,9 @@ class CreateThread(QThread):
             traceback.print_exc()
             try:
                 try:
-                    self.tradedict['MktDatpath']=AutoStrategy.ReadListLinebyLine('MktDatpath.txt',os.getcwd())[0]
+                    self.createparadict['MktDatpath']=AutoStrategy.ReadListLinebyLine('MktDatpath.txt',os.getcwd())[0]
                 except:
-                    self.tradedict['MktDatpath']=r'C:\tools\Anaconda3\Lib\site-packages'
+                    self.createparadict['MktDatpath']=r'C:\tools\Anaconda3\Lib\site-packages'
                     traceback.print_exc()
                 disk_engine =create_engine('sqlite:///'+os.path.join(self.tradedict['MktDatpath'],'MktDat.db'))
                 TimestampPriceX=pd.read_sql_query("SELECT * FROM TradingSignal where Code= '%s'" %self.tradedict['MktDatpath'], disk_engine)
@@ -323,6 +325,963 @@ class TradeThread(QThread):
         loop = QEventLoop()
         loop.exec_()
   
+
+
+
+class MCThread(QThread):
+    signal = pyqtSignal(pd.DataFrame)
+
+    def __init__(self):
+        QThread.__init__(self)
+        self.MCdict = dict()
+
+    # run method gets called when we start the thread
+    def run(self):
+
+        try:
+            MongoMindb = Downloader.MongoDBIO(db=re.sub('分钟线','MinsData',self.MCdict['freq']),host='45.40.203.2')
+
+            if self.MCdict['code'].startswith(('QI','SH','SZ')):
+                starttimeindex = json.loads(pd.DataFrame([self.MCdict['starttime']]).T.to_json()).values()
+                endtimeindex = json.loads(pd.DataFrame([self.MCdict['endtime']]).T.to_json()).values()                
+                TimestampPriceX = MongoMindb.read_mongo(query={'DATETIME': {'$gt':list(starttimeindex)[0]['0'],'$lte':list(endtimeindex)[0]['0']}},collection=self.MCdict['code'])    
+                TimestampPriceX['DATETIME'] = TimestampPriceX['DATETIME']*1000000
+                TimestampPriceX['DATETIME'] = pd.to_datetime(TimestampPriceX['DATETIME'])
+                TimestampPriceX['Date']=[x.date() for x in TimestampPriceX['DATETIME']]
+                TimestampPriceX['Time']=[x.time() for x in TimestampPriceX['DATETIME']]            
+            else:
+                print('A Vaild Stock Code MUST be inputed!\n')
+        except:
+            traceback.print_exc()
+            try:
+                try:
+                    self.MCdict['MktDatpath']=AutoStrategy.ReadListLinebyLine('MktDatpath.txt',os.getcwd())[0]
+                except:
+                    self.MCdict['MktDatpath']=r'C:\tools\Anaconda3\Lib\site-packages'
+                    traceback.print_exc()
+                disk_engine =create_engine('sqlite:///'+os.path.join(self.MCdict['MktDatpath'],'MktDat.db'))
+                TimestampPriceX=pd.read_sql_query("SELECT * FROM TradingSignal where Code= '%s'" %self.MCdict['MktDatpath'], disk_engine)
+            except:
+                traceback.print_exc()
+                try:
+                    TianRuanDownloader=Downloader.TianRuan_Downloader("C:\\Program Files\\Tinysoft\\Analyse.NET")
+                    TianRuanDownloader.login()
+                    TimestampPriceX=TianRuanDownloader.continuous_min_download(self.MCdict['starttime'], self.MCdict['endtime'], self.MCdict['code'],'hfq',self.MCdict['freq'])         
+                    TianRuanDownloader.logout()
+                    TimestampPriceX=TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
+                    TimestampPriceX = TimestampPriceX.replace({'0':np.nan, 0:np.nan})
+                    TimestampPriceX =TimestampPriceX.dropna()
+                    TimestampPriceX = TimestampPriceX.reset_index(drop=True)
+                except:
+                    traceback.print_exc()
+      
+
+        
+        evalperfdictall=[]
+        
+        if self.MCdict['strategytype']=='机器学习':   
+            for i in range(self.MCdict['MCtimes']):
+                evalperfdict=AutoStrategy.Machine_Learning_RobustTest(TimestampPriceX,self.MCdict['strategy'],self.MCdict['strategyfolder'],
+                mutationrate=1,opencost=self.MCdict['opencost'],closecost=self.MCdict['closecost'],
+                intradayclosecost=self.MCdict['intradayclosecost'],r=self.MCdict['r'],Type=self.MCdict['backtest'])
+                evalperfdictall.append(evalperfdict)
+                gc.collect()
+            
+            # calculate benchmark
+            evalperfdictBM=AutoStrategy.Machine_Learning_RobustTest(TimestampPriceX,self.MCdict['strategy'],self.MCdict['strategyfolder'],
+            mutationrate=0,opencost=self.MCdict['opencost'],closecost=self.MCdict['closecost'],
+            intradayclosecost=self.MCdict['intradayclosecost'],r=self.MCdict['r'],Type=self.MCdict['backtest'])
+                
+                
+        else:
+            for i in range(self.MCdict['MCtimes']):
+                evalperfdict=AutoStrategy.Tree_Based_RobustTest(TimestampPriceX,self.MCdict['strategy'],self.MCdict['strategyfolder'],
+                mutationrate=1,opencost=self.MCdict['opencost'],closecost=self.MCdict['closecost'],
+                intradayclosecost=self.MCdict['intradayclosecost'],r=self.MCdict['r'],Type=self.MCdict['backtest'])
+                evalperfdictall.append(evalperfdict)  
+                gc.collect()
+                
+            # calculate benchmark    
+            evalperfdictBM=AutoStrategy.Tree_Based_RobustTest(TimestampPriceX,self.MCdict['strategy'],self.MCdict['strategyfolder'],
+            mutationrate=0,opencost=self.MCdict['opencost'],closecost=self.MCdict['closecost'],
+            intradayclosecost=self.MCdict['intradayclosecost'],r=self.MCdict['r'],Type=self.MCdict['backtest'])
+   
+        MCtable=[]
+        values=[]
+        
+        # 将各个净值曲线合并在一起，组成Pandas DataFrame
+        for evalperfdict in evalperfdictall:
+            value=pd.DataFrame([list(evalperfdict.values())[0].date,list(evalperfdict.values())[0].SimpleValue]).transpose()
+            value.columns=['date',list(evalperfdict.keys())[0]]
+            values.append(value)
+
+        MCcombine=ComboStrategy.Combine_Values_Common_Start_End(values)
+        MCcombine.find_value_from_common_startpoint()      
+        NormalizedValue=MCcombine.all_value_start_from_one()     
+        NormalizedValue.append(MCcombine.CommonstartValue[0]['date'])
+        NormalizedValue=pd.DataFrame(NormalizedValue).transpose()
+        NormalizedValue=NormalizedValue.set_index('date')
+        
+        # 除重复/画图
+        NormalizedValue=NormalizedValue.T.drop_duplicates().T
+        fig = NormalizedValue.plot(kind='line',figsize=(10,4)).get_figure()
+        
+        visualbacktestpath=os.path.join(self.MCdict['strategyfolder'],'visualbacktest')
+        if not os.path.exists(visualbacktestpath):
+            os.mkdir(visualbacktestpath)
+        fig.savefig(os.path.join(visualbacktestpath,"MCline.png"))
+        fig.clf()
+        
+        # 计算最大值，平均值，最小值，基准值
+        avgreturns=[np.mean(list(evalperfdict.values())[0].Return_by_year())[0] for evalperfdict in evalperfdictall]
+        drawdowns=[list(evalperfdict.values())[0].max_drawdown(choice_simple_interest=True) for evalperfdict in evalperfdictall]
+        sharperatios=[list(evalperfdict.values())[0].Sharpe_Ratio_all() for evalperfdict in evalperfdictall]
+        
+        MCtable.append([np.max(avgreturns),np.mean(avgreturns),np.min(avgreturns),np.mean(list(evalperfdictBM.values())[0].Return_by_year())[0]])
+        MCtable.append([np.max(drawdowns),np.mean(drawdowns),np.min(drawdowns),list(evalperfdictBM.values())[0].max_drawdown(choice_simple_interest=True)])
+        MCtable.append([np.max(sharperatios),np.mean(sharperatios),np.min(sharperatios),list(evalperfdictBM.values())[0].Sharpe_Ratio_all()])
+        MCtable=pd.DataFrame(MCtable).T
+        self.signal.emit(MCtable)
+        
+
+
+
+class OOBBTThread(QThread):
+    signal = pyqtSignal(dict)
+
+    def __init__(self):
+        QThread.__init__(self)
+        self.OOBdict = dict()
+
+    # run method gets called when we start the thread
+    def run(self):
+
+        try:
+            MongoMindb = Downloader.MongoDBIO(db=re.sub('分钟线','MinsData',self.OOBdict['freq']),host='45.40.203.2')
+
+            if self.OOBdict['code'].startswith(('QI','SH','SZ')):
+                starttimeindex = json.loads(pd.DataFrame([self.OOBdict['TimestampPriceXstarttime']]).T.to_json()).values()
+                endtimeindex = json.loads(pd.DataFrame([self.OOBdict['endtime']]).T.to_json()).values()                
+                TimestampPriceX = MongoMindb.read_mongo(query={'DATETIME': {'$gt':list(starttimeindex)[0]['0'],'$lte':list(endtimeindex)[0]['0']}},collection=self.OOBdict['code'])    
+                TimestampPriceX['DATETIME'] = TimestampPriceX['DATETIME']*1000000
+                TimestampPriceX['DATETIME'] = pd.to_datetime(TimestampPriceX['DATETIME'])
+                TimestampPriceX['Date']=[x.date() for x in TimestampPriceX['DATETIME']]
+                TimestampPriceX['Time']=[x.time() for x in TimestampPriceX['DATETIME']]            
+            else:
+                print('A Vaild Stock Code MUST be inputed!\n')
+        except:
+            traceback.print_exc()
+            try:
+                try:
+                    self.OOBdict['MktDatpath']=AutoStrategy.ReadListLinebyLine('MktDatpath.txt',os.getcwd())[0]
+                except:
+                    self.OOBdict['MktDatpath']=r'C:\tools\Anaconda3\Lib\site-packages'
+                    traceback.print_exc()
+                disk_engine =create_engine('sqlite:///'+os.path.join(self.OOBdict['MktDatpath'],'MktDat.db'))
+                TimestampPriceX=pd.read_sql_query("SELECT * FROM TradingSignal where Code= '%s'" %self.OOBdict['MktDatpath'], disk_engine)
+            except:
+                traceback.print_exc()
+                try:
+                    TianRuanDownloader=Downloader.TianRuan_Downloader("C:\\Program Files\\Tinysoft\\Analyse.NET")
+                    TianRuanDownloader.login()
+                    TimestampPriceX=TianRuanDownloader.continuous_min_download(self.OOBdict['starttime'], self.OOBdict['endtime'], self.OOBdict['code'],'hfq',self.OOBdict['freq'])         
+                    TianRuanDownloader.logout()
+                    TimestampPriceX = TimestampPriceX.drop_duplicates(subset='DATETIME', keep='first', inplace=False)        
+                    TimestampPriceX = TimestampPriceX.replace({'0':np.nan, 0:np.nan})
+                    TimestampPriceX = TimestampPriceX.dropna()
+                    TimestampPriceX = TimestampPriceX.reset_index(drop=True)
+                except:
+                    traceback.print_exc()
+      
+        try:
+            self.OOBdict['signalpath']=AutoStrategy.ReadListLinebyLine('SignalPath.txt',os.getcwd())[0]
+        except:    
+            self.OOBdict['signalpath']=r'C:\tools\Anaconda3\Lib\site-packages'
+                
+        if self.OOBdict['strategytype']=='机器学习':   
+            evalperf=AutoStrategy.Machine_Learning_Backtest(TimestampPriceX,self.OOBdict['strategy'],self.OOBdict['strategyfolder'],
+            useDBsignal=self.OOBdict['useDBsignal'],signalpath=self.OOBdict['signalpath'],opencost=self.OOBdict['opencost'],closecost=self.OOBdict['closecost'],
+            intradayclosecost=self.OOBdict['intradayclosecost'],r=self.OOBdict['r'],Type=self.OOBdict['backtest'],starttime=self.OOBdict['starttime'],endtime=self.OOBdict['endtime'])
+        else:
+            evalperf=AutoStrategy.Rule_Based_Backtest(TimestampPriceX,self.OOBdict['strategy'],self.OOBdict['strategyfolder'],
+            useDBsignal=self.OOBdict['useDBsignal'],signalpath=self.OOBdict['signalpath'],opencost=self.OOBdict['opencost'],closecost=self.OOBdict['closecost'],
+            intradayclosecost=self.OOBdict['intradayclosecost'],r=self.OOBdict['r'],Type=self.OOBdict['backtest'],starttime=self.OOBdict['starttime'],endtime=self.OOBdict['endtime'])
+        gc.collect()
+        
+        visualbacktestpath=os.path.join(self.OOBdict['strategyfolder'],'visualbacktest')
+        if not os.path.exists(visualbacktestpath):
+            os.mkdir(visualbacktestpath)
+            
+        plot_trial=plot.pyplt_plot(pd.DataFrame([evalperf.date,evalperf.SimpleValue]).transpose(),'value')
+        plot_trial.date_line_plot(os.path.join(visualbacktestpath,'value.png'))
+        
+        plot_trial=plot.pyplt_plot(pd.DataFrame([evalperf.date[1:],evalperf.returns]).transpose(),'returns')
+        plot_trial.hist_plot(os.path.join(visualbacktestpath,'returns.png'))
+        
+        plot_trial=plot.pyplt_plot(pd.DataFrame([evalperf.date,-1*np.array(evalperf.SimpleDrawback)]).transpose(),'Drawback')
+        plot_trial.area_plot(os.path.join(visualbacktestpath,'drawback.png'))
+        
+        fig = evalperf.Sharpe_Ratio_by_year()[1].plot(kind='bar').get_figure()
+        fig.savefig(os.path.join(visualbacktestpath,"SharpeByYear.png"))
+        fig.clf()
+        
+        BKresultdict=dict()
+        BKresultdict['SharpeRatioall']=evalperf.Sharpe_Ratio_all()
+        BKresultdict['avgreturns']=np.mean(evalperf.Return_by_year())[0]
+        BKresultdict['maxdd']=evalperf.max_drawdown(choice_simple_interest=False)
+        BKresultdict['hitratio']=evalperf.win_rate()
+        BKresultdict['pnlratio']=evalperf.profit_and_loss_ratio()
+        BKresultdict['sharpestd']=np.std(evalperf.Sharpe_Ratio_by_year()[1])
+        BKresultdict['returnstd']=np.std(evalperf.Return_by_year())[0]
+        
+        self.signal.emit(BKresultdict)
+        
+        
+        
+        
+        
+class BacktestOOB_Ui_Dialog(QtWidgets.QDialog):
+    
+    def __init__(self):
+        super().__init__(flags=Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint|Qt.WindowCloseButtonHint)
+
+        self.OOBBT_thread = OOBBTThread()      
+        self.setupUi(self)      
+        
+    def setupUi(self, Dialog):
+        Dialog.setObjectName("Dialog")
+        Dialog.resize(853, 831)
+        self.backtestendtimelabel = QtWidgets.QLabel(Dialog)
+        self.backtestendtimelabel.setGeometry(QtCore.QRect(500, 260, 141, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.backtestendtimelabel.setFont(font)
+        self.backtestendtimelabel.setObjectName("backtestendtimelabel")
+        self.backtestcomboBox = QtWidgets.QComboBox(Dialog)
+        self.backtestcomboBox.setGeometry(QtCore.QRect(270, 230, 91, 22))
+        self.backtestcomboBox.setObjectName("backtestcomboBox")
+        self.backtestcomboBox.addItem("")
+        self.backtestcomboBox.addItem("")
+        self.backtestcomboBox.addItem("")
+        self.backtestlabel = QtWidgets.QLabel(Dialog)
+        self.backtestlabel.setGeometry(QtCore.QRect(70, 219, 101, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.backtestlabel.setFont(font)
+        self.backtestlabel.setObjectName("backtestlabel")
+        self.EnddateTimeEdit = QtWidgets.QDateTimeEdit(Dialog)
+        self.EnddateTimeEdit.setGeometry(QtCore.QRect(630, 270, 161, 22))
+        self.EnddateTimeEdit.setDateTime(QtCore.QDateTime(QtCore.QDate(2018, 1, 1), QtCore.QTime(0, 0, 0)))
+        self.EnddateTimeEdit.setDate(QtCore.QDate(2018, 1, 1))
+        self.EnddateTimeEdit.setObjectName("EnddateTimeEdit")
+        self.maintitlelabel = QtWidgets.QLabel(Dialog)
+        self.maintitlelabel.setGeometry(QtCore.QRect(340, 0, 171, 51))
+        font = QtGui.QFont()
+        font.setFamily("AlternateGothic2 BT")
+        font.setPointSize(18)
+        self.maintitlelabel.setFont(font)
+        self.maintitlelabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.maintitlelabel.setObjectName("maintitlelabel")
+        self.strategylineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategylineEdit.setGeometry(QtCore.QRect(610, 110, 181, 21))
+        self.strategylineEdit.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self.strategylineEdit.setInputMask("")
+        self.strategylineEdit.setText("")
+        self.strategylineEdit.setMaxLength(32767)
+        self.strategylineEdit.setFrame(True)
+        self.strategylineEdit.setObjectName("strategylineEdit")
+        self.opencostlabel = QtWidgets.QLabel(Dialog)
+        self.opencostlabel.setGeometry(QtCore.QRect(70, 139, 121, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.opencostlabel.setFont(font)
+        self.opencostlabel.setObjectName("opencostlabel")
+        self.closecostdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.closecostdoubleSpinBox.setGeometry(QtCore.QRect(270, 191, 91, 22))
+        self.closecostdoubleSpinBox.setDecimals(5)
+        self.closecostdoubleSpinBox.setMaximum(1.0)
+        self.closecostdoubleSpinBox.setSingleStep(0.001)
+        self.closecostdoubleSpinBox.setProperty("value", 0.001)
+        self.closecostdoubleSpinBox.setObjectName("closecostdoubleSpinBox")
+        self.Cancel = QtWidgets.QPushButton(Dialog)
+        self.Cancel.setGeometry(QtCore.QRect(700, 770, 93, 28))
+        self.Cancel.setObjectName("Cancel")
+        self.strategyfolderlineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategyfolderlineEdit.setGeometry(QtCore.QRect(180, 110, 181, 21))
+        self.strategyfolderlineEdit.setText("")
+        self.strategyfolderlineEdit.setObjectName("strategyfolderlineEdit")
+        self.intradayclosecostlabel = QtWidgets.QLabel(Dialog)
+        self.intradayclosecostlabel.setGeometry(QtCore.QRect(500, 139, 141, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.intradayclosecostlabel.setFont(font)
+        self.intradayclosecostlabel.setObjectName("intradayclosecostlabel")
+        self.strategylabel = QtWidgets.QLabel(Dialog)
+        self.strategylabel.setGeometry(QtCore.QRect(500, 100, 101, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.strategylabel.setFont(font)
+        self.strategylabel.setObjectName("strategylabel")
+        self.backteststarttimelabel = QtWidgets.QLabel(Dialog)
+        self.backteststarttimelabel.setGeometry(QtCore.QRect(500, 220, 141, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.backteststarttimelabel.setFont(font)
+        self.backteststarttimelabel.setObjectName("backteststarttimelabel")
+        self.StartdateTimeEdit = QtWidgets.QDateTimeEdit(Dialog)
+        self.StartdateTimeEdit.setGeometry(QtCore.QRect(630, 230, 161, 22))
+        self.StartdateTimeEdit.setDate(QtCore.QDate(2007, 1, 1))
+        self.StartdateTimeEdit.setObjectName("StartdateTimeEdit")
+        self.subtitlelabel = QtWidgets.QLabel(Dialog)
+        self.subtitlelabel.setGeometry(QtCore.QRect(260, 50, 331, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.subtitlelabel.setFont(font)
+        self.subtitlelabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.subtitlelabel.setObjectName("subtitlelabel")
+        self.closecostlabel = QtWidgets.QLabel(Dialog)
+        self.closecostlabel.setGeometry(QtCore.QRect(70, 180, 91, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.closecostlabel.setFont(font)
+        self.closecostlabel.setObjectName("closecostlabel")
+        self.intradayclosecostdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.intradayclosecostdoubleSpinBox.setGeometry(QtCore.QRect(700, 150, 91, 22))
+        self.intradayclosecostdoubleSpinBox.setDecimals(5)
+        self.intradayclosecostdoubleSpinBox.setMaximum(1.0)
+        self.intradayclosecostdoubleSpinBox.setSingleStep(0.001)
+        self.intradayclosecostdoubleSpinBox.setProperty("value", 0.001)
+        self.intradayclosecostdoubleSpinBox.setObjectName("intradayclosecostdoubleSpinBox")
+        self.Simulate = QtWidgets.QPushButton(Dialog)
+        self.Simulate.setGeometry(QtCore.QRect(600, 770, 93, 28))
+        self.Simulate.setObjectName("Simulate")
+        self.strategyfolderlabel = QtWidgets.QLabel(Dialog)
+        self.strategyfolderlabel.setGeometry(QtCore.QRect(70, 100, 101, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.strategyfolderlabel.setFont(font)
+        self.strategyfolderlabel.setObjectName("strategyfolderlabel")
+        self.rlabel = QtWidgets.QLabel(Dialog)
+        self.rlabel.setGeometry(QtCore.QRect(500, 180, 131, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.rlabel.setFont(font)
+        self.rlabel.setObjectName("rlabel")
+        self.rdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.rdoubleSpinBox.setGeometry(QtCore.QRect(700, 191, 91, 22))
+        self.rdoubleSpinBox.setDecimals(5)
+        self.rdoubleSpinBox.setMaximum(1.0)
+        self.rdoubleSpinBox.setSingleStep(0.001)
+        self.rdoubleSpinBox.setProperty("value", 0.05)
+        self.rdoubleSpinBox.setObjectName("rdoubleSpinBox")
+        self.opencostdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.opencostdoubleSpinBox.setGeometry(QtCore.QRect(270, 150, 91, 22))
+        self.opencostdoubleSpinBox.setDecimals(5)
+        self.opencostdoubleSpinBox.setMaximum(1.0)
+        self.opencostdoubleSpinBox.setSingleStep(0.001)
+        self.opencostdoubleSpinBox.setProperty("value", 0.001)
+        self.opencostdoubleSpinBox.setObjectName("opencostdoubleSpinBox")
+        self.pnlratiolabel = QtWidgets.QLabel(Dialog)
+        self.pnlratiolabel.setGeometry(QtCore.QRect(590, 491, 141, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.pnlratiolabel.setFont(font)
+        self.pnlratiolabel.setObjectName("pnlratiolabel")
+        self.sharpeall = QtWidgets.QLabel(Dialog)
+        self.sharpeall.setGeometry(QtCore.QRect(710, 336, 72, 15))
+        self.sharpeall.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.sharpeall.setText("")
+        self.sharpeall.setObjectName("sharpeall")
+        self.Returndist = QtWidgets.QLabel(Dialog)
+        self.Returndist.setGeometry(QtCore.QRect(320, 600, 211, 201))
+        self.Returndist.setFrameShape(QtWidgets.QFrame.Box)
+        self.Returndist.setText("")
+        self.Returndist.setScaledContents(True)
+        self.Returndist.setObjectName("Returndist")
+        self.avgreturnlabel = QtWidgets.QLabel(Dialog)
+        self.avgreturnlabel.setGeometry(QtCore.QRect(590, 371, 131, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.avgreturnlabel.setFont(font)
+        self.avgreturnlabel.setObjectName("avgreturnlabel")
+        self.hitratio = QtWidgets.QLabel(Dialog)
+        self.hitratio.setGeometry(QtCore.QRect(710, 456, 72, 15))
+        self.hitratio.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.hitratio.setText("")
+        self.hitratio.setObjectName("hitratio")
+        self.drawdownlabel = QtWidgets.QLabel(Dialog)
+        self.drawdownlabel.setGeometry(QtCore.QRect(400, 300, 81, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.drawdownlabel.setFont(font)
+        self.drawdownlabel.setObjectName("drawdownlabel")
+        self.maxddlabel = QtWidgets.QLabel(Dialog)
+        self.maxddlabel.setGeometry(QtCore.QRect(590, 410, 72, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.maxddlabel.setFont(font)
+        self.maxddlabel.setObjectName("maxddlabel")
+        self.returnstdlabel = QtWidgets.QLabel(Dialog)
+        self.returnstdlabel.setGeometry(QtCore.QRect(590, 571, 121, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.returnstdlabel.setFont(font)
+        self.returnstdlabel.setObjectName("returnstdlabel")
+        self.maxdd = QtWidgets.QLabel(Dialog)
+        self.maxdd.setGeometry(QtCore.QRect(710, 416, 72, 15))
+        self.maxdd.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.maxdd.setText("")
+        self.maxdd.setObjectName("maxdd")
+        self.SharpeByYear = QtWidgets.QLabel(Dialog)
+        self.SharpeByYear.setGeometry(QtCore.QRect(70, 600, 211, 201))
+        self.SharpeByYear.setFrameShape(QtWidgets.QFrame.Box)
+        self.SharpeByYear.setText("")
+        self.SharpeByYear.setScaledContents(True)
+        self.SharpeByYear.setObjectName("SharpeByYear")
+        self.returnstd = QtWidgets.QLabel(Dialog)
+        self.returnstd.setGeometry(QtCore.QRect(710, 576, 72, 15))
+        self.returnstd.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.returnstd.setText("")
+        self.returnstd.setObjectName("returnstd")
+        self.pnlratio = QtWidgets.QLabel(Dialog)
+        self.pnlratio.setGeometry(QtCore.QRect(710, 496, 72, 15))
+        self.pnlratio.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.pnlratio.setText("")
+        self.pnlratio.setObjectName("pnlratio")
+        self.valuelabel = QtWidgets.QLabel(Dialog)
+        self.valuelabel.setGeometry(QtCore.QRect(150, 300, 61, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.valuelabel.setFont(font)
+        self.valuelabel.setObjectName("valuelabel")
+        self.avgreturn = QtWidgets.QLabel(Dialog)
+        self.avgreturn.setGeometry(QtCore.QRect(710, 376, 72, 15))
+        self.avgreturn.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.avgreturn.setText("")
+        self.avgreturn.setObjectName("avgreturn")
+        self.hitratiolabel = QtWidgets.QLabel(Dialog)
+        self.hitratiolabel.setGeometry(QtCore.QRect(590, 450, 72, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.hitratiolabel.setFont(font)
+        self.hitratiolabel.setObjectName("hitratiolabel")
+        self.SharpeByYearlabel = QtWidgets.QLabel(Dialog)
+        self.SharpeByYearlabel.setGeometry(QtCore.QRect(120, 570, 111, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.SharpeByYearlabel.setFont(font)
+        self.SharpeByYearlabel.setObjectName("SharpeByYearlabel")
+        self.drawdown = QtWidgets.QLabel(Dialog)
+        self.drawdown.setGeometry(QtCore.QRect(320, 330, 211, 201))
+        self.drawdown.setFrameShape(QtWidgets.QFrame.Box)
+        self.drawdown.setText("")
+        self.drawdown.setScaledContents(True)
+        self.drawdown.setObjectName("drawdown")
+        self.sharpestd = QtWidgets.QLabel(Dialog)
+        self.sharpestd.setGeometry(QtCore.QRect(710, 536, 72, 15))
+        self.sharpestd.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.sharpestd.setText("")
+        self.sharpestd.setObjectName("sharpestd")
+        self.Returndistlabel = QtWidgets.QLabel(Dialog)
+        self.Returndistlabel.setGeometry(QtCore.QRect(380, 570, 111, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.Returndistlabel.setFont(font)
+        self.Returndistlabel.setObjectName("Returndistlabel")
+        self.value = QtWidgets.QLabel(Dialog)
+        self.value.setGeometry(QtCore.QRect(70, 330, 211, 201))
+        self.value.setFrameShape(QtWidgets.QFrame.Box)
+        self.value.setText("")
+        self.value.setScaledContents(True)
+        self.value.setObjectName("value")
+        self.sharpestdlabel = QtWidgets.QLabel(Dialog)
+        self.sharpestdlabel.setGeometry(QtCore.QRect(590, 531, 121, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.sharpestdlabel.setFont(font)
+        self.sharpestdlabel.setObjectName("sharpestdlabel")
+        self.sharpealllabel = QtWidgets.QLabel(Dialog)
+        self.sharpealllabel.setGeometry(QtCore.QRect(590, 330, 101, 31))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.sharpealllabel.setFont(font)
+        self.sharpealllabel.setObjectName("sharpealllabel")
+        self.useDBsignalcheckBox = QtWidgets.QCheckBox(Dialog)
+        self.useDBsignalcheckBox.setGeometry(QtCore.QRect(70, 260, 351, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.useDBsignalcheckBox.setFont(font)
+        self.useDBsignalcheckBox.setObjectName("useDBsignalcheckBox")
+
+
+        icon = QtGui.QIcon()
+        icon.addPixmap(QtGui.QPixmap("icon.jpg"), QtGui.QIcon.Normal, QtGui.QIcon.Off)  
+        Dialog.setWindowIcon(icon)
+
+        oImage = QImage("background.jpg")
+        sImage = oImage.scaled(QSize(1034, 810))                   # resize Image to widgets size
+        palette = QPalette()
+        palette.setBrush(10, QBrush(sImage))                     # 10 = Windowrole
+        Dialog.setPalette(palette)
+        
+        self.retranslateUi(Dialog)
+        self.Simulate.clicked.connect(self.on_ok_clicked)
+        self.Cancel.clicked.connect(Dialog.reject)
+        QtCore.QMetaObject.connectSlotsByName(Dialog)
+
+
+
+
+    def retranslateUi(self, Dialog):
+        _translate = QtCore.QCoreApplication.translate
+        Dialog.setWindowTitle(_translate("Dialog", "样本外分析"))
+        self.backtestendtimelabel.setText(_translate("Dialog", "回测结束时间"))
+        self.backtestcomboBox.setItemText(0, _translate("Dialog", "多空回测"))
+        self.backtestcomboBox.setItemText(1, _translate("Dialog", "单空回测"))
+        self.backtestcomboBox.setItemText(2, _translate("Dialog", "单多回测"))
+        self.backtestlabel.setText(_translate("Dialog", "回测方式"))
+        self.maintitlelabel.setText(_translate("Dialog", "霹雳侠"))
+        self.strategylineEdit.setPlaceholderText(_translate("Dialog", "必须以Auto_开头"))
+        self.opencostlabel.setText(_translate("Dialog", "开仓成本"))
+        self.Cancel.setText(_translate("Dialog", "退出"))
+        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\Strategyfolder"))
+        self.intradayclosecostlabel.setText(_translate("Dialog", "日内平仓成本"))
+        self.strategylabel.setText(_translate("Dialog", "策略名称"))
+        self.backteststarttimelabel.setText(_translate("Dialog", "回测开始时间"))
+        self.subtitlelabel.setText(_translate("Dialog", "策略自动产生与配置交易一站式平台"))
+        self.closecostlabel.setText(_translate("Dialog", "平仓成本"))
+        self.Simulate.setText(_translate("Dialog", "开始分析"))
+        self.strategyfolderlabel.setText(_translate("Dialog", "存储路径"))
+        self.rlabel.setText(_translate("Dialog", "止损百分比"))
+        self.pnlratiolabel.setText(_translate("Dialog", "盈亏比（日）"))
+        self.avgreturnlabel.setText(_translate("Dialog", "平均年化收益"))
+        self.drawdownlabel.setText(_translate("Dialog", "回撤"))
+        self.maxddlabel.setText(_translate("Dialog", "最大回撤"))
+        self.returnstdlabel.setText(_translate("Dialog", "年化收益波动率"))
+        self.valuelabel.setText(_translate("Dialog", "净值"))
+        self.hitratiolabel.setText(_translate("Dialog", "胜率"))
+        self.SharpeByYearlabel.setText(_translate("Dialog", "分年度夏普"))
+        self.Returndistlabel.setText(_translate("Dialog", "日收益分布"))
+        self.sharpestdlabel.setText(_translate("Dialog", "夏普波动率"))
+        self.sharpealllabel.setText(_translate("Dialog", "夏普"))
+        self.useDBsignalcheckBox.setText(_translate("Dialog", "使用交易数据库信号进行分析"))
+
+
+
+
+    def on_ok_clicked(self):
+        self.OOBdict=dict()
+        
+        self.OOBdict['strategyfolder']=self.strategyfolderlineEdit.text()
+        self.OOBdict['strategy']=self.strategylineEdit.text()
+        self.OOBdict['opencost']=self.opencostdoubleSpinBox.value()
+        self.OOBdict['closecost']=self.closecostdoubleSpinBox.value()
+        self.OOBdict['r']=self.rdoubleSpinBox.value()
+        self.OOBdict['intradayclosecost']=self.intradayclosecostdoubleSpinBox.value()
+        self.OOBdict['backtest']=self.backtestcomboBox.currentText()
+        self.OOBdict['starttime']=self.StartdateTimeEdit.dateTime().toPyDateTime().date()
+        self.OOBdict['endtime']=self.EnddateTimeEdit.dateTime().toPyDateTime().date()
+        self.OOBdict['useDBsignal']=self.useDBsignalcheckBox.isChecked()
+        
+        SignalGenerator=AutomatedCTATradeHelper.Signal_Generator(self.OOBdict['strategyfolder'], self.OOBdict['strategy'])
+        Strategy=SignalGenerator.Load_Strategy()  
+        self.OOBdict['TimestampPriceXstarttime']=Strategy['TimestampPriceX']['DATETIME'].iloc[0]
+        self.OOBdict['code']=Strategy['Code']
+        
+        if type(Strategy['Method']) is not str:
+            self.OOBdict['strategytype']='基于规则'
+        else:
+            self.OOBdict['strategytype']='机器学习'        
+
+        self.OOBdict['freq']=str(Strategy['TimestampPriceX']['DATETIME'].diff().value_counts().idxmax())
+        self.OOBdict['freq']=re.findall('[0-9]{2}:[0-9]{2}:[0-9]{2}',self.OOBdict['freq'])[0]
+        self.OOBdict['freq']=int(self.OOBdict['freq'][1:2])*60+int(self.OOBdict['freq'][3:5])
+        self.OOBdict['freq']=str(self.OOBdict['freq'])+'分钟线'
+
+        if self.OOBdict['backtest']=='多空回测':
+            self.OOBdict['backtest']='LongShort'
+        elif self.OOBdict['backtest']=='单多回测':
+            self.OOBdict['backtest']='LongOnly'
+        else:
+            self.OOBdict['backtest']='ShortOnly'
+
+        self.OOBBT_thread.OOBdict = self.OOBdict # Get the git URL
+        self.Simulate.setEnabled(False)
+        self.OOBBT_thread.start()  # Finally starts the thread 
+        self.OOBBT_thread.signal.connect(self.on_OOBBT)   
+
+
+    def on_OOBBT(self,BKresultdict):       
+        visualbacktestpath=os.path.join(self.OOBdict['strategyfolder'],'visualbacktest')
+        if not os.path.exists(visualbacktestpath):
+            os.mkdir(visualbacktestpath)
+            
+        valuepixmap = QPixmap(os.path.join(visualbacktestpath,'value.png'))
+        self.value.setPixmap(valuepixmap)
+
+        returnspixmap = QPixmap(os.path.join(visualbacktestpath,'returns.png'))
+        self.Returndist.setPixmap(returnspixmap)
+        
+        drawbackpixmap = QPixmap(os.path.join(visualbacktestpath,'drawback.png'))
+        self.drawdown.setPixmap(drawbackpixmap)
+        
+        sharpepixmap = QPixmap(os.path.join(visualbacktestpath,'SharpeByYear.png'))
+        self.SharpeByYear.setPixmap(sharpepixmap)
+        
+        self.sharpeall.setText('%.2f' % (round(BKresultdict['SharpeRatioall'],2)))
+        self.avgreturn.setText('%.2f' % (round(BKresultdict['avgreturns'],4)*100)+'%')
+        self.maxdd.setText('%.2f' % (round(BKresultdict['maxdd'],4)*100)+'%')
+        self.hitratio.setText('%.2f' % (round(BKresultdict['hitratio'],4)*100)+'%')
+        self.pnlratio.setText('%.2f' % (round(BKresultdict['pnlratio'],2)))
+        self.sharpestd.setText('%.2f' % (round(BKresultdict['sharpestd'],2)))
+        self.returnstd.setText('%.2f' % (round(BKresultdict['returnstd'],4)*100)+'%')
+        
+        self.Simulate.setEnabled(True)
+        self.OOBBT_thread.quit()
+        self.OOBBT_thread.wait()        
+        
+        
+        
+        
+        
+        
+class MC_Ui_Dialog(QtWidgets.QDialog):
+    
+    def __init__(self):
+        super().__init__(flags=Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint|Qt.WindowCloseButtonHint)
+
+        self.MC_thread = MCThread()      
+        self.setupUi(self)      
+        
+    def setupUi(self, Dialog):
+        Dialog.setObjectName("Dialog")
+        Dialog.resize(876, 849)
+        Dialog.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        Dialog.setAutoFillBackground(True)
+        self.subtitlelabel = QtWidgets.QLabel(Dialog)
+        self.subtitlelabel.setGeometry(QtCore.QRect(250, 50, 331, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.subtitlelabel.setFont(font)
+        self.subtitlelabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.subtitlelabel.setObjectName("subtitlelabel")
+        self.value = QtWidgets.QLabel(Dialog)
+        self.value.setGeometry(QtCore.QRect(60, 300, 751, 281))
+        self.value.setFrameShape(QtWidgets.QFrame.Box)
+        self.value.setText("")
+        self.value.setScaledContents(True)
+        self.value.setObjectName("value")
+        self.strategylabel = QtWidgets.QLabel(Dialog)
+        self.strategylabel.setGeometry(QtCore.QRect(490, 100, 101, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.strategylabel.setFont(font)
+        self.strategylabel.setObjectName("strategylabel")
+        self.strategyfolderlabel = QtWidgets.QLabel(Dialog)
+        self.strategyfolderlabel.setGeometry(QtCore.QRect(60, 100, 101, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.strategyfolderlabel.setFont(font)
+        self.strategyfolderlabel.setObjectName("strategyfolderlabel")
+        self.strategylineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategylineEdit.setGeometry(QtCore.QRect(600, 110, 181, 21))
+        self.strategylineEdit.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self.strategylineEdit.setInputMask("")
+        self.strategylineEdit.setText("")
+        self.strategylineEdit.setMaxLength(32767)
+        self.strategylineEdit.setFrame(True)
+        self.strategylineEdit.setObjectName("strategylineEdit")
+        self.maintitlelabel = QtWidgets.QLabel(Dialog)
+        self.maintitlelabel.setGeometry(QtCore.QRect(330, 0, 171, 51))
+        font = QtGui.QFont()
+        font.setFamily("AlternateGothic2 BT")
+        font.setPointSize(18)
+        self.maintitlelabel.setFont(font)
+        self.maintitlelabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.maintitlelabel.setObjectName("maintitlelabel")
+        self.strategyfolderlineEdit = QtWidgets.QLineEdit(Dialog)
+        self.strategyfolderlineEdit.setGeometry(QtCore.QRect(170, 110, 181, 21))
+        self.strategyfolderlineEdit.setText("")
+        self.strategyfolderlineEdit.setObjectName("strategyfolderlineEdit")
+        self.tableWidget = QtWidgets.QTableWidget(Dialog)
+        self.tableWidget.setGeometry(QtCore.QRect(60, 580, 751, 211))
+        self.tableWidget.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
+        self.tableWidget.setRowCount(4)
+        self.tableWidget.setColumnCount(3)
+        self.tableWidget.setObjectName("tableWidget")
+        item = QtWidgets.QTableWidgetItem()
+        self.tableWidget.setVerticalHeaderItem(0, item)
+        item = QtWidgets.QTableWidgetItem()
+        self.tableWidget.setVerticalHeaderItem(1, item)
+        item = QtWidgets.QTableWidgetItem()
+        self.tableWidget.setVerticalHeaderItem(2, item)
+        item = QtWidgets.QTableWidgetItem()
+        self.tableWidget.setVerticalHeaderItem(3, item)
+        item = QtWidgets.QTableWidgetItem()
+        self.tableWidget.setHorizontalHeaderItem(0, item)
+        item = QtWidgets.QTableWidgetItem()
+        self.tableWidget.setHorizontalHeaderItem(1, item)
+        item = QtWidgets.QTableWidgetItem()
+        self.tableWidget.setHorizontalHeaderItem(2, item)
+        item = QtWidgets.QTableWidgetItem()
+        item.setTextAlignment(QtCore.Qt.AlignCenter)
+        self.tableWidget.setItem(0, 0, item)
+        item = QtWidgets.QTableWidgetItem()
+        item.setTextAlignment(QtCore.Qt.AlignCenter)
+        self.tableWidget.setItem(0, 1, item)
+        self.tableWidget.horizontalHeader().setDefaultSectionSize(231)
+        self.tableWidget.verticalHeader().setDefaultSectionSize(42)
+        self.opencostdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.opencostdoubleSpinBox.setGeometry(QtCore.QRect(260, 150, 91, 22))
+        self.opencostdoubleSpinBox.setDecimals(5)
+        self.opencostdoubleSpinBox.setMaximum(1.0)
+        self.opencostdoubleSpinBox.setSingleStep(0.001)
+        self.opencostdoubleSpinBox.setProperty("value", 0.001)
+        self.opencostdoubleSpinBox.setObjectName("opencostdoubleSpinBox")
+        self.intradayclosecostdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.intradayclosecostdoubleSpinBox.setGeometry(QtCore.QRect(690, 150, 91, 22))
+        self.intradayclosecostdoubleSpinBox.setDecimals(5)
+        self.intradayclosecostdoubleSpinBox.setMaximum(1.0)
+        self.intradayclosecostdoubleSpinBox.setSingleStep(0.001)
+        self.intradayclosecostdoubleSpinBox.setProperty("value", 0.001)
+        self.intradayclosecostdoubleSpinBox.setObjectName("intradayclosecostdoubleSpinBox")
+        self.closecostlabel = QtWidgets.QLabel(Dialog)
+        self.closecostlabel.setGeometry(QtCore.QRect(60, 180, 91, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.closecostlabel.setFont(font)
+        self.closecostlabel.setObjectName("closecostlabel")
+        self.backtestlabel = QtWidgets.QLabel(Dialog)
+        self.backtestlabel.setGeometry(QtCore.QRect(60, 219, 101, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.backtestlabel.setFont(font)
+        self.backtestlabel.setObjectName("backtestlabel")
+        self.closecostdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.closecostdoubleSpinBox.setGeometry(QtCore.QRect(260, 191, 91, 22))
+        self.closecostdoubleSpinBox.setDecimals(5)
+        self.closecostdoubleSpinBox.setMaximum(1.0)
+        self.closecostdoubleSpinBox.setSingleStep(0.001)
+        self.closecostdoubleSpinBox.setProperty("value", 0.001)
+        self.closecostdoubleSpinBox.setObjectName("closecostdoubleSpinBox")
+        self.opencostlabel = QtWidgets.QLabel(Dialog)
+        self.opencostlabel.setGeometry(QtCore.QRect(60, 139, 121, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.opencostlabel.setFont(font)
+        self.opencostlabel.setObjectName("opencostlabel")
+        self.rlabel = QtWidgets.QLabel(Dialog)
+        self.rlabel.setGeometry(QtCore.QRect(490, 180, 131, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.rlabel.setFont(font)
+        self.rlabel.setObjectName("rlabel")
+        self.intradayclosecostlabel = QtWidgets.QLabel(Dialog)
+        self.intradayclosecostlabel.setGeometry(QtCore.QRect(490, 139, 141, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.intradayclosecostlabel.setFont(font)
+        self.intradayclosecostlabel.setObjectName("intradayclosecostlabel")
+        self.backtestcomboBox = QtWidgets.QComboBox(Dialog)
+        self.backtestcomboBox.setGeometry(QtCore.QRect(260, 230, 91, 22))
+        self.backtestcomboBox.setObjectName("backtestcomboBox")
+        self.backtestcomboBox.addItem("")
+        self.backtestcomboBox.addItem("")
+        self.backtestcomboBox.addItem("")
+        self.rdoubleSpinBox = QtWidgets.QDoubleSpinBox(Dialog)
+        self.rdoubleSpinBox.setGeometry(QtCore.QRect(690, 191, 91, 22))
+        self.rdoubleSpinBox.setDecimals(5)
+        self.rdoubleSpinBox.setMaximum(1.0)
+        self.rdoubleSpinBox.setSingleStep(0.001)
+        self.rdoubleSpinBox.setProperty("value", 0.05)
+        self.rdoubleSpinBox.setObjectName("rdoubleSpinBox")
+        self.MCtimeslabel = QtWidgets.QLabel(Dialog)
+        self.MCtimeslabel.setGeometry(QtCore.QRect(490, 220, 161, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.MCtimeslabel.setFont(font)
+        self.MCtimeslabel.setObjectName("MCtimeslabel")
+        self.MCtimesspinBox = QtWidgets.QSpinBox(Dialog)
+        self.MCtimesspinBox.setGeometry(QtCore.QRect(690, 230, 91, 22))
+        self.MCtimesspinBox.setMaximum(9999)
+        self.MCtimesspinBox.setProperty("value", 4)
+        self.MCtimesspinBox.setDisplayIntegerBase(10)
+        self.MCtimesspinBox.setObjectName("MCtimesspinBox")
+        self.backtestendtimelabel = QtWidgets.QLabel(Dialog)
+        self.backtestendtimelabel.setGeometry(QtCore.QRect(490, 260, 141, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.backtestendtimelabel.setFont(font)
+        self.backtestendtimelabel.setObjectName("backtestendtimelabel")
+        self.backteststarttimelabel = QtWidgets.QLabel(Dialog)
+        self.backteststarttimelabel.setGeometry(QtCore.QRect(60, 260, 141, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(11)
+        self.backteststarttimelabel.setFont(font)
+        self.backteststarttimelabel.setObjectName("backteststarttimelabel")
+        self.StartdateTimeEdit = QtWidgets.QDateTimeEdit(Dialog)
+        self.StartdateTimeEdit.setGeometry(QtCore.QRect(190, 270, 161, 22))
+        self.StartdateTimeEdit.setDate(QtCore.QDate(2007, 1, 1))
+        self.StartdateTimeEdit.setObjectName("StartdateTimeEdit")
+        self.EnddateTimeEdit = QtWidgets.QDateTimeEdit(Dialog)
+        self.EnddateTimeEdit.setGeometry(QtCore.QRect(620, 270, 161, 22))
+        self.EnddateTimeEdit.setDateTime(QtCore.QDateTime(QtCore.QDate(2018, 1, 1), QtCore.QTime(0, 0, 0)))
+        self.EnddateTimeEdit.setDate(QtCore.QDate(2018, 1, 1))
+        self.EnddateTimeEdit.setObjectName("EnddateTimeEdit")
+        self.Simulate = QtWidgets.QPushButton(Dialog)
+        self.Simulate.setGeometry(QtCore.QRect(610, 810, 93, 28))
+        self.Simulate.setObjectName("Simulate")
+        self.Cancel = QtWidgets.QPushButton(Dialog)
+        self.Cancel.setGeometry(QtCore.QRect(720, 810, 93, 28))
+        self.Cancel.setObjectName("Cancel")
+
+
+        icon = QtGui.QIcon()
+        icon.addPixmap(QtGui.QPixmap("icon.jpg"), QtGui.QIcon.Normal, QtGui.QIcon.Off)  
+        Dialog.setWindowIcon(icon)
+
+        oImage = QImage("background.jpg")
+        sImage = oImage.scaled(QSize(1034, 810))                   # resize Image to widgets size
+        palette = QPalette()
+        palette.setBrush(10, QBrush(sImage))                     # 10 = Windowrole
+        Dialog.setPalette(palette)
+        
+        self.retranslateUi(Dialog)
+        self.Simulate.clicked.connect(self.on_ok_clicked)
+        self.Cancel.clicked.connect(Dialog.reject)
+        QtCore.QMetaObject.connectSlotsByName(Dialog)
+
+    def retranslateUi(self, Dialog):
+        _translate = QtCore.QCoreApplication.translate
+        Dialog.setWindowTitle(_translate("Dialog", "蒙特卡洛鲁棒性测试"))
+        self.subtitlelabel.setText(_translate("Dialog", "策略自动产生与配置交易一站式平台"))
+        self.strategylabel.setText(_translate("Dialog", "策略名称"))
+        self.strategyfolderlabel.setText(_translate("Dialog", "存储路径"))
+        self.strategylineEdit.setPlaceholderText(_translate("Dialog", "必须以Auto_开头"))
+        self.maintitlelabel.setText(_translate("Dialog", "霹雳侠"))
+        self.strategyfolderlineEdit.setPlaceholderText(_translate("Dialog", "C:\\\\Strategyfolder"))
+        item = self.tableWidget.verticalHeaderItem(0)
+        item.setText(_translate("Dialog", "最大值"))
+        item = self.tableWidget.verticalHeaderItem(1)
+        item.setText(_translate("Dialog", "平均值"))
+        item = self.tableWidget.verticalHeaderItem(2)
+        item.setText(_translate("Dialog", "最小值"))
+        item = self.tableWidget.verticalHeaderItem(3)
+        item.setText(_translate("Dialog", "基准值"))
+        item = self.tableWidget.horizontalHeaderItem(0)
+        item.setText(_translate("Dialog", "年化收益"))
+        item = self.tableWidget.horizontalHeaderItem(1)
+        item.setText(_translate("Dialog", "最大回撤"))
+        item = self.tableWidget.horizontalHeaderItem(2)
+        item.setText(_translate("Dialog", "夏普比率"))
+        __sortingEnabled = self.tableWidget.isSortingEnabled()
+        self.tableWidget.setSortingEnabled(False)
+        self.tableWidget.setSortingEnabled(__sortingEnabled)
+        self.closecostlabel.setText(_translate("Dialog", "平仓成本"))
+        self.backtestlabel.setText(_translate("Dialog", "回测方式"))
+        self.opencostlabel.setText(_translate("Dialog", "开仓成本"))
+        self.rlabel.setText(_translate("Dialog", "止损百分比"))
+        self.intradayclosecostlabel.setText(_translate("Dialog", "日内平仓成本"))
+        self.backtestcomboBox.setItemText(0, _translate("Dialog", "多空回测"))
+        self.backtestcomboBox.setItemText(1, _translate("Dialog", "单空回测"))
+        self.backtestcomboBox.setItemText(2, _translate("Dialog", "单多回测"))
+        self.MCtimeslabel.setText(_translate("Dialog", "蒙特卡洛次数"))
+        self.backtestendtimelabel.setText(_translate("Dialog", "回测结束时间"))
+        self.backteststarttimelabel.setText(_translate("Dialog", "回测开始时间"))
+        self.Simulate.setText(_translate("Dialog", "开始模拟"))
+        self.Cancel.setText(_translate("Dialog", "退出"))
+
+
+    def on_ok_clicked(self):
+        self.MCdict=dict()
+        
+        self.MCdict['strategyfolder']=self.strategyfolderlineEdit.text()
+        self.MCdict['strategy']=self.strategylineEdit.text()
+        self.MCdict['opencost']=self.opencostdoubleSpinBox.value()
+        self.MCdict['closecost']=self.closecostdoubleSpinBox.value()
+        self.MCdict['r']=self.rdoubleSpinBox.value()
+        self.MCdict['intradayclosecost']=self.intradayclosecostdoubleSpinBox.value()
+        self.MCdict['backtest']=self.backtestcomboBox.currentText()
+        self.MCdict['MCtimes']=self.MCtimesspinBox.value()
+        self.MCdict['starttime']=self.StartdateTimeEdit.dateTime().toPyDateTime()
+        self.MCdict['endtime']=self.EnddateTimeEdit.dateTime().toPyDateTime()
+        
+        SignalGenerator=AutomatedCTATradeHelper.Signal_Generator(self.MCdict['strategyfolder'], self.MCdict['strategy'])
+        Strategy=SignalGenerator.Load_Strategy()  
+        
+        self.MCdict['code']=Strategy['Code']
+        if type(Strategy['Method']) is not str:
+            self.MCdict['strategytype']='基于规则'
+        else:
+            self.MCdict['strategytype']='机器学习'        
+
+        self.MCdict['freq']=str(Strategy['TimestampPriceX']['DATETIME'].diff().value_counts().idxmax())
+        self.MCdict['freq']=re.findall('[0-9]{2}:[0-9]{2}:[0-9]{2}',self.MCdict['freq'])[0]
+        self.MCdict['freq']=int(self.MCdict['freq'][1:2])*60+int(self.MCdict['freq'][3:5])
+        self.MCdict['freq']=str(self.MCdict['freq'])+'分钟线'
+
+        if self.MCdict['backtest']=='多空回测':
+            self.MCdict['backtest']='LongShort'
+        elif self.MCdict['backtest']=='单多回测':
+            self.MCdict['backtest']='LongOnly'
+        else:
+            self.MCdict['backtest']='ShortOnly'
+
+        self.MC_thread.MCdict = self.MCdict # Get the git URL
+        self.Simulate.setEnabled(False)
+        self.MC_thread.start()  # Finally starts the thread 
+        self.MC_thread.signal.connect(self.on_MC)   
+
+
+    def on_MC(self,MCresult):       
+        for i in range(len(MCresult)):
+            for j in range(MCresult.columns.size): 
+                item = QtWidgets.QTableWidgetItem(str(np.round(MCresult.iloc[i,j],2)))
+                item.setTextAlignment(QtCore.Qt.AlignCenter)
+                self.tableWidget.setItem(i, j, item)
+     
+        visualbacktestpath=os.path.join(self.MCdict['strategyfolder'],'visualbacktest')
+        if not os.path.exists(visualbacktestpath):
+            os.mkdir(visualbacktestpath)
+        MCline = QPixmap(os.path.join(visualbacktestpath,'MCline.png'))
+        self.value.setPixmap(MCline)
+        self.Simulate.setEnabled(True)
+        self.MC_thread.quit()
+        self.MC_thread.wait()        
+        
 
 
 class DBSetting_Ui_Dialog(QtWidgets.QDialog):
@@ -588,6 +1547,8 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
         self.buttonBox.rejected.connect(Dialog.reject)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
 
+
+
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "归因"))
@@ -607,6 +1568,53 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
         
         SignalGenerator=AutomatedCTATradeHelper.Signal_Generator(self.attributedict['strategyfolder'], self.attributedict['strategy'])
         Strategy=SignalGenerator.Load_Strategy()
+        
+        
+        # store function's name with params
+        methoddict=dict()
+        
+        # 初始化
+        for name in Strategy['FeaturesXCohort'].keys():  
+            methoddict[name]=[]
+        
+        # 将ParamXCohort与FeaturesXCohort一一对应
+        for func in Strategy['ParamXCohort'].keys():
+            for name in Strategy['FeaturesXCohort'].keys():  
+                funcstr = re.sub('[<>]','',str(func))
+                if re.sub("[0-9_]*$", '', name) in re.split('\s+|[.]',funcstr):
+                    for param in Strategy['ParamXCohort'][func].keys():
+                        if not hasattr(Strategy['ParamXCohort'][func][param], "__len__"):
+                            methoddict[name].append(param+'='+ str(round(Strategy['ParamXCohort'][func][param],2)))
+                        else:
+                            methoddict[name].append(param)
+        
+        # 将methoddict中的real用RealaliasXCohort替换
+        for name in methoddict.keys():
+            methoddict[name]=Strategy['RealaliasXCohort'][name]+list(filter(lambda a: a != 'real', methoddict[name]))
+        
+        AuxiliaryNote=''
+        for name in methoddict.keys():
+             AuxiliaryNote=AuxiliaryNote+name+'('+', '.join(methoddict[name])+')\n'
+        
+        methoddictY=dict()
+        Yname=list(Strategy['FeatureY'].keys())[0]
+        Yfunc=list(Strategy['ParamY'].keys())[0]
+        Yfuncstr = re.sub('[<>]','',str(Yfunc))
+        methoddictY[Yname]=[]
+        if re.sub("[0-9_]*$", '', Yname) in re.split('\s+|[.]',Yfuncstr):
+            for param in Strategy['ParamY'][Yfunc].keys():
+                if not hasattr(Strategy['ParamY'][Yfunc][param], "__len__"):
+                    methoddictY[Yname].append(param+'='+ str(round(Strategy['ParamY'][Yfunc][param],2)))
+                else:
+                    methoddictY[Yname].append(param)
+
+        for Yname in methoddictY.keys():
+            methoddictY[Yname]=Strategy['RealaliasY'][Yname]+list(filter(lambda a: a != 'real', methoddictY[Yname]))
+
+        
+        for Yname in methoddictY.keys():
+             AuxiliaryNote=Yname+'('+', '.join(methoddictY[Yname])+')\n'+AuxiliaryNote
+                            
         Colnames=Strategy['Traindata'].columns.difference(['DATETIME'])
         '''
         colexplanation=''
@@ -629,14 +1637,14 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
             Y=Strategy['Traindata'].columns[0]
             Xs=[str(round(x[0],2))+' * '+x[1] for x in zip(model.params[1:], model.params.index[1:])]
             XYformulastr=Y + ' = ' + str(round(model.params[0],2)) + ' + ' + ' + '.join(Xs)
-            self.textBrowser.setText(XYformulastr)
+            self.textBrowser.setText(XYformulastr+'\n'*4+'使用因子:\n'+AuxiliaryNote+'注：同一因子带不同后缀出现在表达式中多次为哑变量，如果因子没有出现则代表因子在预处理中被丢弃\n因子说明请查询Talib和AutoStrategy下的FeatureBase.py')
         else:
             StrategyMethod = io.StringIO()
             Strategy['Method'].display(f=StrategyMethod)
             Treeformulastr=StrategyMethod.getvalue()
             for i, colname in enumerate(Colnames):
                 Treeformulastr=Treeformulastr.replace('p'+str(i),colname)
-            self.textBrowser.setText(Treeformulastr+'\n'*4)
+            self.textBrowser.setText(Treeformulastr+'\n'*4+'使用因子:\n'+AuxiliaryNote+'注：同一因子带不同后缀出现在表达式中多次为哑变量，如果因子没有出现则代表因子在预处理中被丢弃\n因子说明请查询Talib和AutoStrategy下的FeatureBase.py')
             
 
 class Criteria_Ui_Dialog(QtWidgets.QDialog):
@@ -1031,7 +2039,55 @@ class BK_Ui_Dialog(QtWidgets.QDialog):
         self.subtitlelabel.setFont(font)
         self.subtitlelabel.setAlignment(QtCore.Qt.AlignCenter)
         self.subtitlelabel.setObjectName("subtitlelabel")
-        
+        self.totalreturnlabel = QtWidgets.QLabel(Dialog)
+        self.totalreturnlabel.setGeometry(QtCore.QRect(850, 460, 121, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.totalreturnlabel.setFont(font)
+        self.totalreturnlabel.setObjectName("totalreturnlabel")
+        self.totalreturn = QtWidgets.QLabel(Dialog)
+        self.totalreturn.setGeometry(QtCore.QRect(970, 470, 72, 15))
+        self.totalreturn.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.totalreturn.setText("")
+        self.totalreturn.setObjectName("totalreturn")
+        self.totaltradeslabel = QtWidgets.QLabel(Dialog)
+        self.totaltradeslabel.setGeometry(QtCore.QRect(850, 500, 121, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.totaltradeslabel.setFont(font)
+        self.totaltradeslabel.setObjectName("totaltradeslabel")
+        self.totaltrades = QtWidgets.QLabel(Dialog)
+        self.totaltrades.setGeometry(QtCore.QRect(970, 510, 72, 15))
+        self.totaltrades.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.totaltrades.setText("")
+        self.totaltrades.setObjectName("totaltrades")
+        self.avgtradesprofitlabel = QtWidgets.QLabel(Dialog)
+        self.avgtradesprofitlabel.setGeometry(QtCore.QRect(850, 540, 121, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.avgtradesprofitlabel.setFont(font)
+        self.avgtradesprofitlabel.setObjectName("avgtradesprofitlabel")
+        self.avgtradesprofit = QtWidgets.QLabel(Dialog)
+        self.avgtradesprofit.setGeometry(QtCore.QRect(970, 550, 72, 15))
+        self.avgtradesprofit.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.avgtradesprofit.setText("")
+        self.avgtradesprofit.setObjectName("avgtradesprofit")
+        self.avgtradeslosslabel = QtWidgets.QLabel(Dialog)
+        self.avgtradeslosslabel.setGeometry(QtCore.QRect(850, 580, 121, 41))
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(9)
+        self.avgtradeslosslabel.setFont(font)
+        self.avgtradeslosslabel.setObjectName("avgtradeslosslabel")
+        self.avgtradesloss = QtWidgets.QLabel(Dialog)
+        self.avgtradesloss.setGeometry(QtCore.QRect(970, 590, 72, 15))
+        self.avgtradesloss.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.avgtradesloss.setText("")
+        self.avgtradesloss.setObjectName("avgtradesloss")
+       
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("icon.jpg"), QtGui.QIcon.Normal, QtGui.QIcon.Off)  
         Dialog.setWindowIcon(icon)
@@ -1067,7 +2123,11 @@ class BK_Ui_Dialog(QtWidgets.QDialog):
         self.pnlratiolabel.setText(_translate("Dialog", "盈亏比（日）"))
         self.sharpestdlabel.setText(_translate("Dialog", "夏普波动率"))
         self.returnstdlabel.setText(_translate("Dialog", "年化收益波动率"))
-
+        self.totalreturnlabel.setText(_translate("Dialog", "总收益"))
+        self.totaltradeslabel.setText(_translate("Dialog", "交易次数"))
+        self.avgtradesprofitlabel.setText(_translate("Dialog", "平均盈利"))
+        self.avgtradeslosslabel.setText(_translate("Dialog", "平均亏损"))
+        
     def on_ok_clicked(self):
         self.okdict=dict()
         self.okdict['strategyfolder']=self.strategyfolderlineEdit.text()
@@ -1079,6 +2139,15 @@ class BK_Ui_Dialog(QtWidgets.QDialog):
         SignalGenerator=AutomatedCTATradeHelper.Signal_Generator(self.okdict['strategyfolder'], self.okdict['strategy'])
         Strategy=SignalGenerator.Load_Strategy()
         evalperf=Strategy['EvalPerformence']
+        TimestampSignal=Strategy['TimestampSignal']
+        TimestampPriceX=Strategy['TimestampPriceX']
+
+        backtestMins=BacktestPerformence.backtest_minutes(TimestampSignal,TimestampPriceX,opencost=1.5/10000,closecost=1.5/10000,closecost2=10/10000)
+        backtestMins.actionlist_generator()
+        avgholding=evalperf.avg_holding_period(backtestMins.actionlist, Type='LongShort') 
+        avgholding=avgholding/ np.timedelta64(1, 'h')/24
+        avgtradeprofit=evalperf.returns[evalperf.returns>0].mean()*avgholding
+        avgtradeloss=evalperf.returns[evalperf.returns<0].mean()*avgholding
         
         plot_trial=plot.pyplt_plot(pd.DataFrame([evalperf.date,evalperf.SimpleValue]).transpose(),'value')
         plot_trial.date_line_plot(os.path.join(visualbacktestpath,'value.png'))
@@ -1092,8 +2161,6 @@ class BK_Ui_Dialog(QtWidgets.QDialog):
         fig = evalperf.Sharpe_Ratio_by_year()[1].plot(kind='bar').get_figure()
         fig.savefig(os.path.join(visualbacktestpath,"SharpeByYear.png"))
         fig.clf()
-        #fig.cla()
-        #fig.close()
             
         valuepixmap = QPixmap(os.path.join(visualbacktestpath,'value.png'))
         self.value.setPixmap(valuepixmap)
@@ -1114,6 +2181,12 @@ class BK_Ui_Dialog(QtWidgets.QDialog):
         self.pnlratio.setText('%.2f' % (round(evalperf.profit_and_loss_ratio(),2)))
         self.sharpestd.setText('%.2f' % (round(np.std(evalperf.Sharpe_Ratio_by_year()[1]),2)))
         self.returnstd.setText('%.2f' % (round(np.std(evalperf.Return_by_year())[0],4)*100)+'%')
+        self.totalreturn.setText('%.2f' % (round(evalperf.SimpleValue[-1],2)))
+        self.avgtradesprofit.setText('%.4f' % (round(avgtradeprofit,2)))
+        self.avgtradesloss.setText('%.4f' % (round(avgtradeloss,2)))
+        self.totaltrades.setText('%.2f' % (round(avgholding,2))+'days')
+        
+        
         
         
              
@@ -1918,11 +2991,21 @@ class Ui_MainWindow(object):
         self.dbsetting = QtWidgets.QAction(MainWindow)
         self.dbsetting.setObjectName("dbsetting")
         self.dbsetting.triggered.connect(self.on_dbsetting_triggered)
+
+        self.MC = QtWidgets.QAction(MainWindow)
+        self.MC.setObjectName("MC")
+        self.MC.triggered.connect(self.on_MC_triggered)
+        
+        self.BacktestOOB = QtWidgets.QAction(MainWindow)
+        self.BacktestOOB.setObjectName("BacktestOOB")
+        self.BacktestOOB.triggered.connect(self.on_BacktestOOB_triggered)
         
         self.menu.addAction(self.reg)
         self.menu.addAction(self.Trading)
         self.menu.addAction(self.backtest)
         self.menu.addAction(self.attribute)
+        self.menu.addAction(self.MC)
+        self.menu.addAction(self.BacktestOOB)
         self.custommenu.addAction(self.criteria)
         self.custommenu.addAction(self.loaddatacsv)
         self.custommenu.addAction(self.dbsetting)
@@ -2004,7 +3087,8 @@ class Ui_MainWindow(object):
         self.attribute.setText(_translate("MainWindow", "观看归因"))
         self.loaddatacsv.setText(_translate("MainWindow", "CSV数据导入"))
         self.dbsetting.setText(_translate("MainWindow", "数据库路径设置"))
-        
+        self.MC.setText(_translate("MainWindow", "蒙特卡洛参数敏感性分析"))
+        self.BacktestOOB.setText(_translate("MainWindow", "模拟盘回溯测试"))        
 
     def on_Trading_triggered(self):
         dialog = Trading_Ui_Dialog()
@@ -2039,6 +3123,17 @@ class Ui_MainWindow(object):
         self.dialogs.append(dialog)
         dialog.show()           
 
+    def on_MC_triggered(self):
+        dialog = MC_Ui_Dialog()
+        self.dialogs.append(dialog)
+        dialog.show()  
+        
+    def on_BacktestOOB_triggered(self):
+        dialog = BacktestOOB_Ui_Dialog()
+        self.dialogs.append(dialog)
+        dialog.show()          
+          
+        
     def on_create_clicked(self):
         self.createparadict['numfeature']=self.numfeaturespinBox.value()
         self.createparadict['ppr']=self.pprdoubleSpinBox.value()
