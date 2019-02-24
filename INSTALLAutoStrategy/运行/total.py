@@ -1596,24 +1596,7 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
         for name in methoddict.keys():
              AuxiliaryNote=AuxiliaryNote+name+'('+', '.join(methoddict[name])+')\n'
         
-        methoddictY=dict()
-        Yname=list(Strategy['FeatureY'].keys())[0]
-        Yfunc=list(Strategy['ParamY'].keys())[0]
-        Yfuncstr = re.sub('[<>]','',str(Yfunc))
-        methoddictY[Yname]=[]
-        if re.sub("[0-9_]*$", '', Yname) in re.split('\s+|[.]',Yfuncstr):
-            for param in Strategy['ParamY'][Yfunc].keys():
-                if not hasattr(Strategy['ParamY'][Yfunc][param], "__len__"):
-                    methoddictY[Yname].append(param+'='+ str(round(Strategy['ParamY'][Yfunc][param],2)))
-                else:
-                    methoddictY[Yname].append(param)
 
-        for Yname in methoddictY.keys():
-            methoddictY[Yname]=Strategy['RealaliasY'][Yname]+list(filter(lambda a: a != 'real', methoddictY[Yname]))
-
-        
-        for Yname in methoddictY.keys():
-             AuxiliaryNote=Yname+'('+', '.join(methoddictY[Yname])+')\n'+AuxiliaryNote
                             
         Colnames=Strategy['Traindata'].columns.difference(['DATETIME'])
         '''
@@ -1622,6 +1605,26 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
             colexplanation=colexplanation+'p'+str(i)+': ' + colname +'\n' 
         '''
         if isinstance(Strategy['Method'], str):
+            methoddictY=dict()
+            Yname=list(Strategy['FeatureY'].keys())[0]
+            Yfunc=list(Strategy['ParamY'].keys())[0]
+            Yfuncstr = re.sub('[<>]','',str(Yfunc))
+            methoddictY[Yname]=[]
+            if re.sub("[0-9_]*$", '', Yname) in re.split('\s+|[.]',Yfuncstr):
+                for param in Strategy['ParamY'][Yfunc].keys():
+                    if not hasattr(Strategy['ParamY'][Yfunc][param], "__len__"):
+                        methoddictY[Yname].append(param+'='+ str(round(Strategy['ParamY'][Yfunc][param],2)))
+                    else:
+                        methoddictY[Yname].append(param)
+    
+            for Yname in methoddictY.keys():
+                methoddictY[Yname]=Strategy['RealaliasY'][Yname]+list(filter(lambda a: a != 'real', methoddictY[Yname]))
+    
+            
+            for Yname in methoddictY.keys():
+                 AuxiliaryNote=Yname+'('+', '.join(methoddictY[Yname])+')\n'+AuxiliaryNote
+                 
+                 
             colnamesX = Strategy['Traindata'].columns[2:]
             y = Strategy['Traindata'][Strategy['Traindata'].columns[0]]
             X = Strategy['Traindata'][colnamesX]
@@ -1638,7 +1641,7 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
             Xs=[str(round(x[0],2))+' * '+x[1] for x in zip(model.params[1:], model.params.index[1:])]
             XYformulastr=Y + ' = ' + str(round(model.params[0],2)) + ' + ' + ' + '.join(Xs)
             self.textBrowser.setText(XYformulastr+'\n'*4+'使用因子:\n'+AuxiliaryNote+'注：同一因子带不同后缀出现在表达式中多次为哑变量，如果因子没有出现则代表因子在预处理中被丢弃\n因子说明请查询Talib和AutoStrategy下的FeatureBase.py')
-        else:
+        else:    
             StrategyMethod = io.StringIO()
             Strategy['Method'].display(f=StrategyMethod)
             Treeformulastr=StrategyMethod.getvalue()
