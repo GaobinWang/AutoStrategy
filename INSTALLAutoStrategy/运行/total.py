@@ -1594,7 +1594,7 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
         
         AuxiliaryNote=''
         for name in methoddict.keys():
-             AuxiliaryNote=AuxiliaryNote+name+'('+', '.join(methoddict[name])+')\n'
+             AuxiliaryNote=AuxiliaryNote+'x: '+name+'('+', '.join(methoddict[name])+')\n'
         
 
                             
@@ -1622,7 +1622,7 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
     
             
             for Yname in methoddictY.keys():
-                 AuxiliaryNote=Yname+'('+', '.join(methoddictY[Yname])+')\n'+AuxiliaryNote
+                 AuxiliaryNote=Yname+'y: '+'('+', '.join(methoddictY[Yname])+')\n'+AuxiliaryNote
                  
                  
             colnamesX = Strategy['Traindata'].columns[2:]
@@ -2146,7 +2146,7 @@ class BK_Ui_Dialog(QtWidgets.QDialog):
         TimestampPriceX=Strategy['TimestampPriceX']
 
         backtestMins=BacktestPerformence.backtest_minutes(TimestampSignal,TimestampPriceX,opencost=1.5/10000,closecost=1.5/10000,closecost2=10/10000)
-        backtestMins.actionlist_generator()
+        backtestMins.actionlist_generator(Timeeffect=False)
         avgholding=evalperf.avg_holding_period(backtestMins.actionlist, Type='LongShort') 
         avgholding=avgholding/ np.timedelta64(1, 'h')/24
         avgtradeprofit=evalperf.returns[evalperf.returns>0].mean()*avgholding
@@ -2506,7 +2506,7 @@ class Trading_Ui_Dialog(QtWidgets.QDialog):
                 self.tradedict['vnpystrategyfolder']=r'C:\tools\Anaconda2\Lib\site-packages\vnpy-1.9.2-py2.7.egg\vnpy\trader\app\ctaStrategy\strategy'
         self.tradedict['vnpysettingpath']=self.vnpysettingpathlineEdit.text()  
         if len(self.tradedict['vnpysettingpath'])==0:
-            self.tradedict['vnpysettingpath']=None
+            self.tradedict['vnpysettingpath']=r'C:\vnpy\examples\VnTrader'
         try:
             self.tradedict['signalpath']=AutoStrategy.ReadListLinebyLine('SignalPath.txt',os.getcwd())[0]
         except:    
