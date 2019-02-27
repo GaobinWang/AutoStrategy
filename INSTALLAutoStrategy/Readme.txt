@@ -1,12 +1,10 @@
-°²×°
+å®‰è£…
 
-Ê×ÏÈÔÚ°²×°ÎÄ¼þ¼ÐÏÂË«»÷INSTALL.bat
-È»ºóË«»÷MongoDB£¬Íê³É°²×°
+é¦–å…ˆåœ¨å®‰è£…æ–‡ä»¶å¤¹ä¸‹åŒå‡»INSTALL.bat
+ç„¶åŽåŒå‡»MongoDBï¼Œå®Œæˆå®‰è£…
 
-ÔËÐÐ
-µã»÷run.bat´ò¿ª²ßÂÔÏµÍ³
-µã»÷runvnpy.bat´ò¿ª½»Ò×ÏµÍ³
-
-×¢Òâ£¬Ä¿Ç°Êý¾ÝÖ»Ö§³ÖÌìÈí£¬ÇÒÌìÈíPython½Ó¿Ú±ØÐëÒÑ¾­¿ªÆô
+è¿è¡Œ
+ç‚¹å‡»run.batæ‰“å¼€ç­–ç•¥ç³»ç»Ÿ
+ç‚¹å‡»runvnpy.batæ‰“å¼€äº¤æ˜“ç³»ç»Ÿ
 
 
