@@ -1590,7 +1590,7 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
         
         # 将methoddict中的real用RealaliasXCohort替换
         for name in methoddict.keys():
-            methoddict[name]=Strategy['RealaliasXCohort'][name]+list(filter(lambda a: a != 'real', methoddict[name]))
+            methoddict[name]=Strategy['RealaliasXCohort'][re.sub("[0-9_]*$", '', name)]+list(filter(lambda a: a != 'real', methoddict[name]))
         
         AuxiliaryNote=''
         for name in methoddict.keys():
@@ -1622,7 +1622,7 @@ class Attribute_Ui_Dialog(QtWidgets.QDialog):
     
             
             for Yname in methoddictY.keys():
-                 AuxiliaryNote=Yname+'y: '+'('+', '.join(methoddictY[Yname])+')\n'+AuxiliaryNote
+                 AuxiliaryNote='y: '+Yname+'('+', '.join(methoddictY[Yname])+')\n'+AuxiliaryNote
                  
                  
             colnamesX = Strategy['Traindata'].columns[2:]
